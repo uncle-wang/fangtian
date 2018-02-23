@@ -1,5 +1,6 @@
 var express = require('express');
 var app = express();
+var sql = require('./sql');
 
 app.get('/test', function(req, res) {
 
@@ -15,3 +16,5 @@ app.listen(6932, function() {
 
 	console.log('STARTAPP');
 });
+
+sql('show tables;');
