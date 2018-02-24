@@ -1,11 +1,16 @@
 var express = require('express');
+var session = require('express-session');
 var app = express();
-var sql = require('./sql');
 
-app.get('/test', function(req, res) {
+app.use(session({
+	secret: 'fangtian game',
+	resave: true,
+	saveUninitialized: true
+}));
 
-	res.send({aa: 'bb'});
-});
+// 加载controller
+var controller = require('./controller');
+controller(app);
 
 app.use(function(req, res) {
 
@@ -16,5 +21,3 @@ app.listen(6932, function() {
 
 	console.log('STARTAPP');
 });
-
-sql('show tables;');
