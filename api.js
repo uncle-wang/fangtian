@@ -16,7 +16,7 @@ var userExist = function(username, callback) {
 	});
 };
 
-// 注册 1000-成功 1001-数据库异常
+// 注册 1-成功 0-数据库异常
 var createUser = function(username, password, nickname, callback) {
 
 	// 创建新用户
@@ -26,16 +26,16 @@ var createUser = function(username, password, nickname, callback) {
 		}
 		else {
 			if (result.affectedRows === 1) {
-				callback(null, {status: 1000, userId: result.insertId});
+				callback(null, {status: 1, userId: result.insertId});
 			}
 			else {
-				callback('db error');
+				callback(null, {status: 0});
 			}
 		}
 	});
 };
 
-// 登陆 1000-成功 1001-用户名或密码错误
+// 登陆 1-成功 0-用户名或密码错误
 var login = function(username, password, callback) {
 
 	sql('select * from USERS where name="' + username + '"', function(err, results) {
@@ -44,16 +44,52 @@ var login = function(username, password, callback) {
 		}
 		else {
 			if (results.length < 1) {
-				callback(null, {status: 1001});
+				callback(null, {status: 0});
 			}
 			else {
 				var result = results[0];
 				if (result.password !== md5(password)) {
-					callback(null, {status: 1001});
+					callback(null, {status: 0});
 				}
 				else {
-					callback(null, {status: 1000, userInfo: result});
+					callback(null, {status: 1, userInfo: result});
 				}
+			}
+		}
+	});
+};
+
+// 获取订单
+var getOrder = function(orderId, callback) {
+
+	sql('select * from RT_ORDER where id=' + orderId, function(err, result) {
+		if (err) {
+			callback(err);
+		}
+		else {
+			callback(null, result[0]);
+		}
+	});
+};
+
+// 响应订单
+var responseOrder = function(userId) {};
+
+// 更新余额
+
+// 获取用户可用余额 0-用户不存在 1-成功
+var getAvailableBalance = function(userId, callback) {
+
+	sql('select blc_available from USERS where id=' + userId, function(err, result) {
+		if (err) {
+			callback(err);
+		}
+		else {
+			if (result.length >= 1) {
+				callback(null, {status: 1, balance: result.blc_available});
+			}
+			else {
+				callback(null, {status: 0});
 			}
 		}
 	});
@@ -63,5 +99,7 @@ module.exports = {
 
 	login: login,
 	createUser: createUser,
-	userExist: userExist
+	userExist: userExist,
+	getOrder: getOrder,
+	getAvailableBalance: getAvailableBalance
 };

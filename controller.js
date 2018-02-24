@@ -9,6 +9,9 @@ var api = require('./api');
 	1003-服务器错误
 	2001-用户已存在(注册)
 	2002-用户名或密码错误(登陆)
+	2003-用户余额不足
+	3001-订单不存在
+	3002-订单已失效
 */
 
 var init = function(app) {
@@ -32,11 +35,11 @@ var init = function(app) {
 					}
 					else {
 						api.createUser(username, password, nickname, function(err, result) {
-							if (!err && result.status === 1000) {
+							if (!err && result.status === 1) {
 								res.send({status: 1000, userId: result.userId});
 							}
 							else {
-								res.send({status: 1003, desc: err});
+								res.send({status: 1003, desc: 'sql error'});
 							}
 						});
 					}
@@ -78,7 +81,7 @@ var init = function(app) {
 					res.send({status: 1003, desc: err});
 				}
 				else {
-					if (resultMap.status === 1000) {
+					if (resultMap.status === 1) {
 						var userInfo = resultMap.userInfo;
 						req.session.userid = userInfo.id;
 						res.send({status: 1000});
@@ -94,11 +97,64 @@ var init = function(app) {
 		}
 	});
 
+	// 响应订单
+	app.get('/responseOrder', function(req, res) {
+
+		var orderId = req.query.orderid;
+		api.getOrder(orderId, function(err, orderInfo) {
+			if (err) {
+				res.send({status: 1003, desc: err});
+			}
+			else {
+				if (orderInfo) {
+					if (orderInfo.status !== '0') {
+						res.send({status: 3002});
+					}
+					else {
+						var quota = orderInfo.quota;
+						var value = orderInfo.value;
+						var userId = req.session.userid;
+						if (userId) {
+							api.getAvailableBalance(userId, function(err, resultMap) {
+								if (err) {
+									res.send({status: 1003, desc: err});
+								}
+								else {
+									if (resultMap.status === 1) {
+										var balance = resultMap.balance;
+										if (balance >= quota) {
+											//
+										}
+										else {
+											res.send({status: 2003});
+										}
+									}
+									else {
+										res.send({status: 2002});
+									}
+								}
+							});
+						}
+						else {
+							res.send({status: 1001});
+						}
+					}
+				}
+				else {
+					res.send({status: 3001});
+				}
+			}
+		});
+	});
+
 	// 创建订单
 	app.get('/createOrder', function(req, res) {
 
-		if (req.session.userid) {
-			
+		var userId = req.session.userid;
+		if (userId) {
+			var quota = req.query.quota;
+			var value = req.query.value;
+			api.checkOrderPair();
 		}
 		else {
 			res.send({status: 1001});
