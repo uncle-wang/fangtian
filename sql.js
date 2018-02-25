@@ -30,16 +30,18 @@ var _query = function(query, callback) {
 var _trans = function(callback) {
 
 	// 支持事务
-	var queues = require('mysql-queues');
 	pool.getConnection(function(err, connection) {
 		if (err) {
 			callback(err);
 			return;
 		}
-		connection.connect();
-		queues(connection, true);
-		var trans = connection.startTransaction();
-		callback(null, trans);
+		connection.beginTransaction(function(errb) {
+			if (errb) {
+				callback(errb);
+				return;
+			}
+			callback(null, connection);
+		});
 	});
 };
 

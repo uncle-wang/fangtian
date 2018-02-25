@@ -51,6 +51,19 @@ var init = function(app) {
 		}
 	});
 
+	// 注销登录
+	app.get('/logout', function(req, res) {
+
+		var userId = req.session.userid;
+		if (userId) {
+			delete req.session.userid;
+			res.send({status: 1000});
+		}
+		else {
+			res.send({status: 1001});
+		}
+	});
+
 	// 注册
 	app.get('/register', function(req, res) {
 
@@ -162,11 +175,16 @@ var init = function(app) {
 
 		var userId = req.session.userid;
 		if (userId) {
-			var quota = req.query.quota;
-			var value = req.query.value;
-			api.createOrder(userId, quota, value, function(resultMap) {
-				res.send(resultMap);
-			});
+			var quota = parseInt(req.query.quota);
+			var type = parseInt(req.query.type);
+			if (quota >= 0 && (type === 0 || type === 1)) {
+				api.createOrder(userId, quota, type, function(resultMap) {
+					res.send(resultMap);
+				});
+			}
+			else {
+				res.send({status: 1002, desc: 'quota and type is required'});
+			}
 		}
 		else {
 			res.send({status: 1001});

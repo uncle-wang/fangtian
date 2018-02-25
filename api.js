@@ -116,65 +116,70 @@ var getOrderListByUser = function(userId, callback) {
 // TODO 自动匹配响应优先级处理
 // TODO 自动匹配响应优先级处理
 // 创建订单
-var createOrder = function(userId, quota, type) {
+var createOrder = function(userId, quota, type, callback) {
 
-	sql.trans(function(transerr, trans) {
+	sql.trans(function(transerr, connection) {
 
 		if (transerr) {
 			callback({status: 1003, desc: transerr});
 			return;
 		}
 		// 查询用户账户余额并加排他锁
-		trans.query('select blc_available,blc_frozen from USERS where id=' + userId + ' for update', function(usererr, result) {
+		connection.query('select blc_available,blc_frozen from USERS where id=' + userId + ' for update', function(usererr, result) {
 			if (usererr) {
-				trans.rollback();
+				connection.rollback();
 				callback({status: 1003, desc: usererr});
 				return;
 			}
 			// 用户不存在
 			if (result.length < 1) {
-				trans.rollback();
+				connection.rollback();
 				callback({status: 2002});
 				return;
 			}
 			var userInfo = result[0];
 			// 用户余额不足
 			if (userInfo.blc_available < quota) {
-				trans.rollback();
+				connection.rollback();
 				callback({status: 2003});
 				return;
 			}
-			trans.commit();
 			// 查询是否有匹配订单，若有，直接匹配，若没有，创建新订单
 			var matchType = Math.abs(type - 1);
 			// 匹配订单规则：type相反、等额、待处理、发起人与当前用户不冲突
-			trans.query('select * from RT_ORDERS where type=' + typePair + ' and quota=' + quota + ' and status=\'' + 0 + '\' and initiator!=' + userId + ' for update', function(matcherr, result) {
+			connection.query('select * from RT_ORDERS where type=' + matchType + ' and quota=' + quota + ' and status=\'' + 0 + '\' and initiator!=' + userId + ' for update', function(matcherr, result) {
 				if (matcherr) {
-					trans.rollback();
+					connection.rollback();
 					callback({status: 1003, desc: matcherr});
 					return;
 				}
-				trans.commit();
 				// 存在匹配订单
 				if (result.length >= 1) {
 					var orderInfo = result[0];
 					// 响应订单并扣除余额
-					trans.query('update RT_ORDERS set status=\'' + 1 + '\',responder=' + userId + ' where id=' + orderInfo.orderId, function(statuserr, result) {
+					connection.query('update RT_ORDERS set status=\'' + 1 + '\',responder=' + userId + ' where id=' + orderInfo.orderId, function(statuserr, result) {
 						if (statuserr) {
-							trans.rollback();
+							connection.rollback();
 							callback({status: 1003, desc: statuserr});
 						}
 						else {
-							trans.commit();
-							trans.query('update USERS set blc_available=' + (userInfo.blc_available - quota) + ',blc_frozen=' + userInfo.blc_frozen + quota + ' where id=' + userId, function(balanceerr, result) {
+							connection.query('update USERS set blc_available=' + (userInfo.blc_available - quota) + ',blc_frozen=' + (userInfo.blc_frozen + quota) + ' where id=' + userId, function(balanceerr, result) {
 								if (balanceerr) {
-									trans.rollback();
+									connection.rollback();
 									callback({status: 1003, desc: balanceerr});
 								}
 								else {
-									trans.commit();
-									// 响应创建
-									callback({status: 1000, type: 1});
+									connection.commit(function(commiterr) {
+										if (commiterr) {
+											connection.rollback(function() {
+												callback({status: 1003, desc: commiterr});
+											});
+										}
+										else {
+											// 响应创建
+											callback({status: 1000, type: 1});
+										}
+									});
 								}
 							});
 						}
@@ -182,105 +187,123 @@ var createOrder = function(userId, quota, type) {
 				}
 				// 不存在匹配订单
 				else {
-					trans.query('insert into RT_ORDERS(initiator,quota,type) values(' + userId + ',' + quota + ',' + type + ')', function(createerr, result) {
+					connection.query('insert into RT_ORDERS(initiator,quota,type) values(' + userId + ',' + quota + ',' + type + ')', function(createerr, result) {
 						if (createerr) {
-							trans.rollback();
+							connection.rollback();
 							callback({status: 1003, desc: createerr});
 							return;
 						}
-						trans.commit();
-						// 直接创建
-						callback({status: 1000, type: 0});
+						connection.query('update USERS set blc_available=' + (userInfo.blc_available - quota) + ',blc_frozen=' + (userInfo.blc_frozen + quota) + ' where id=' + userId, function(balanceerr, result) {
+							if (balanceerr) {
+								connection.rollback();
+								callback({status: 1003, desc: balanceerr});
+							}
+							else {
+								connection.commit(function(commiterr) {
+									if (commiterr) {
+										connection.rollback(function() {
+											callback({status: 1003, desc: commiterr});
+										});
+									}
+									else {
+										// 直接创建
+										callback({status: 1000, type: 0});
+									}
+								});
+							}
+						});
 					});
 				}
 			});
 		});
-		trans.execute();
 	});
 };
 
 // 响应订单 0-sql错误 1-成功 2-订单不存在 3-订单已失效 4-用户不存在 5-用户余额不足
 var responseOrder = function(userId, orderId, callback) {
 
-	sql.trans(function(transerr, trans) {
+	sql.trans(function(transerr, connection) {
 
 		if (transerr) {
 			callback({status: 1003, desc: transerr});
 			return;
 		}
 		// 查询该订单并加排他锁
-		trans.query('select * from RT_ORDERS where id=' + orderId + ' for update', function(ordererr, result) {
+		connection.query('select * from RT_ORDERS where id=' + orderId + ' for update', function(ordererr, result) {
 			if (ordererr) {
-				trans.rollback();
+				connection.rollback();
 				callback({status: 1003, desc: ordererr});
 				return;
 			}
 			// 订单不存在
 			if (result.length < 1) {
-				trans.rollback();
+				connection.rollback();
 				callback({status: 3001});
 				return;
 			}
 			var orderInfo = result[0];
 			// 订单已失效
 			if (orderInfo.status !== '0') {
-				trans.rollback();
+				connection.rollback();
 				callback({status: 3002});
 				return;
 			}
 			// 用户自己发起的订单
 			if (orderInfo.initiator === userId) {
-				trans.rollback();
+				connection.rollback();
 				callback({status: 3003});
 				return;
 			}
-			trans.commit();
 			var quota = orderInfo.quota;
 			// 查询用户余额并加排他锁
-			trans.query('select blc_available,blc_frozen from USERS where id=' + userId + ' for update', function(usererr, result) {
+			connection.query('select blc_available,blc_frozen from USERS where id=' + userId + ' for update', function(usererr, result) {
 				if (usererr) {
-					trans.rollback();
+					connection.rollback();
 					callback({status: 1003, desc: usererr});
 					return;
 				}
 				// 用户不存在
 				if (result.length < 1) {
-					trans.rollback();
+					connection.rollback();
 					callback({status: 2002});
 					return;
 				}
 				var userInfo = result[0];
 				// 用户余额不足
 				if (userInfo.blc_available < quota) {
-					trans.rollback();
+					connection.rollback();
 					callback({status: 2003});
 					return;
 				}
-				trans.commit();
 				// 响应订单并扣除余额
-				trans.query('update RT_ORDERS set status=\'' + 1 + '\', responder=' + userId + ' where id=' + orderId, function(statuserr, result) {
+				connection.query('update RT_ORDERS set status=\'' + 1 + '\', responder=' + userId + ' where id=' + orderId, function(statuserr, result) {
 					if (statuserr) {
-						trans.rollback();
+						connection.rollback();
 						callback({status: 1003, desc: statuserr});
 					}
 					else {
-						trans.commit();
-						trans.query('update USERS set blc_available=' + (userInfo.blc_available - quota) + ',blc_frozen=' + userInfo.blc_frozen + quota + ' where id=' + userId, function(balanceerr, result) {
+						connection.query('update USERS set blc_available=' + (userInfo.blc_available - quota) + ',blc_frozen=' + (userInfo.blc_frozen + quota) + ' where id=' + userId, function(balanceerr, result) {
 							if (balanceerr) {
-								trans.rollback();
+								connection.rollback();
 								callback({status: 1003, desc: balanceerr});
 							}
 							else {
-								trans.commit();
-								callback({status: 1000});
+								connection.commit(function(commiterr) {
+									if (commiterr) {
+										connection.rollback(function() {
+											callback({status: 1003, desc: commiterr});
+										});
+									}
+									else {
+										callback({status: 1000});
+									}
+								});
 							}
 						});
 					}
 				});
 			});
 		});
-
-		trans.execute();
 	});
 };
 
