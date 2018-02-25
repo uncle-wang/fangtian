@@ -3,39 +3,7 @@ var md5 = require('md5');
 // 加载sql模块
 var sql = require('./sql');
 
-// 验证用户名是否已存在
-var userExist = function(username, callback) {
-
-	sql.query('select id from USERS where name="' + username + '"', function(err, result) {
-		if (err) {
-			callback(err);
-		}
-		else {
-			callback(null, result.length >= 1);
-		}
-	});
-};
-
-// 注册 1-成功 0-数据库异常
-var createUser = function(username, password, nickname, callback) {
-
-	// 创建新用户
-	sql.query('insert into USERS(name,password,nick) values("' + username + '","' + md5(password) + '","' + nickname + '")', function(err, result) {
-		if (err) {
-			callback(err);
-		}
-		else {
-			if (result.affectedRows === 1) {
-				callback(null, {status: 1, userId: result.insertId});
-			}
-			else {
-				callback(null, {status: 0});
-			}
-		}
-	});
-};
-
-// 登陆 1-成功 0-用户名或密码错误
+// 登陆 1-成功 0-用户不存在 2-密码错误
 var login = function(username, password, callback) {
 
 	sql.query('select * from USERS where name="' + username + '"', function(err, results) {
@@ -49,13 +17,185 @@ var login = function(username, password, callback) {
 			else {
 				var result = results[0];
 				if (result.password !== md5(password)) {
-					callback(null, {status: 0});
+					callback(null, {status: 2});
 				}
 				else {
 					callback(null, {status: 1, userInfo: result});
 				}
 			}
 		}
+	});
+};
+
+// 注册 1-成功 0-数据库异常
+var register = function(username, password, nickname, callback) {
+
+	sql.trans(function(transerr, trans) {
+		if (transerr) {
+			callback({status: 1003, desc: transerr});
+			return;
+		}
+		trans.query('select id from USERS where name="' + username + '" for update', function(usererr, result) {
+			if (usererr) {
+				trans.rollback();
+				callback({status: 1003, desc: usererr});
+				return;
+			}
+			if (result.length >= 1) {
+				trans.rollback();
+				callback({status: 2001});
+				return;
+			}
+			trans.commit();
+			trans.query('insert into USERS(name,password,nick) values("' + username + '","' + md5(password) + '","' + nickname + '")', function(createerr, result) {
+				if (createerr) {
+					trans.rollback();
+					callback(createerr);
+					return;
+				}
+				trans.commit();
+				callback(null, {status: 1000, userId: result.insertId});
+			});
+		});
+		trans.execute();
+	});
+	// 创建新用户
+	sql.query('insert into USERS(name,password,nick) values("' + username + '","' + md5(password) + '","' + nickname + '")', function(err, result) {
+	});
+};
+
+// 修改密码
+var updatePassword = function(userId, newpassword, callback) {
+
+	sql.query('update USERS set password="' + md5(newpassword) + '" where id=' + userId, function(err, result) {
+		if (err) {
+			callback({status: 1003, desc: err});
+			return;
+		}
+		if (result.effectRows >= 1) {
+			callback({status: 1000});
+		}
+		else {
+			callback({status: 2002});
+		}
+	});
+};
+
+// 验证用户名是否已存在
+var checkUserExist = function(username, callback) {
+
+	sql.query('select id from USERS where name="' + username + '"', function(err, result) {
+		if (err) {
+			callback(err);
+		}
+		else {
+			callback(null, result.length >= 1);
+		}
+	});
+};
+
+// 查询待响应订单列表
+var getOrderListToBeResponded = function(callback) {
+
+	sql.query('select * from RT_ORDERS where status=\'' + 0 + '\'', function(err, result) {
+		callback(err, result);
+	});
+};
+
+// 查询用户订单列表
+var getOrderListByUser = function(userId, callback) {
+
+	sql.query('select * from RT_ORDERS where initiator=' + userId + ' or responder=' + userId, function(err, result) {
+		callback(err, result);
+	});
+};
+
+// TODO 自动匹配响应优先级处理
+// TODO 自动匹配响应优先级处理
+// TODO 自动匹配响应优先级处理
+// TODO 自动匹配响应优先级处理
+// TODO 自动匹配响应优先级处理
+// 创建订单
+var createOrder = function(userId, quota, type) {
+
+	sql.trans(function(transerr, trans) {
+
+		if (transerr) {
+			callback({status: 1003, desc: transerr});
+			return;
+		}
+		// 查询用户账户余额并加排他锁
+		trans.query('select blc_available,blc_frozen from USERS where id=' + userId + ' for update', function(usererr, result) {
+			if (usererr) {
+				trans.rollback();
+				callback({status: 1003, desc: usererr});
+				return;
+			}
+			// 用户不存在
+			if (result.length < 1) {
+				trans.rollback();
+				callback({status: 2002});
+				return;
+			}
+			var userInfo = result[0];
+			// 用户余额不足
+			if (userInfo.blc_available < quota) {
+				trans.rollback();
+				callback({status: 2003});
+				return;
+			}
+			trans.commit();
+			// 查询是否有匹配订单，若有，直接匹配，若没有，创建新订单
+			var matchType = Math.abs(type - 1);
+			// 匹配订单规则：type相反、等额、待处理、发起人与当前用户不冲突
+			trans.query('select * from RT_ORDERS where type=' + typePair + ' and quota=' + quota + ' and status=\'' + 0 + '\' and initiator!=' + userId + ' for update', function(matcherr, result) {
+				if (matcherr) {
+					trans.rollback();
+					callback({status: 1003, desc: matcherr});
+					return;
+				}
+				trans.commit();
+				// 存在匹配订单
+				if (result.length >= 1) {
+					var orderInfo = result[0];
+					// 响应订单并扣除余额
+					trans.query('update RT_ORDERS set status=\'' + 1 + '\',responder=' + userId + ' where id=' + orderInfo.orderId, function(statuserr, result) {
+						if (statuserr) {
+							trans.rollback();
+							callback({status: 1003, desc: statuserr});
+						}
+						else {
+							trans.commit();
+							trans.query('update USERS set blc_available=' + (userInfo.blc_available - quota) + ',blc_frozen=' + userInfo.blc_frozen + quota + ' where id=' + userId, function(balanceerr, result) {
+								if (balanceerr) {
+									trans.rollback();
+									callback({status: 1003, desc: balanceerr});
+								}
+								else {
+									trans.commit();
+									// 响应创建
+									callback({status: 1000, type: 1});
+								}
+							});
+						}
+					});
+				}
+				// 不存在匹配订单
+				else {
+					trans.query('insert into RT_ORDERS(initiator,quota,type) values(' + userId + ',' + quota + ',' + type + ')', function(createerr, result) {
+						if (createerr) {
+							trans.rollback();
+							callback({status: 1003, desc: createerr});
+							return;
+						}
+						trans.commit();
+						// 直接创建
+						callback({status: 1000, type: 0});
+					});
+				}
+			});
+		});
+		trans.execute();
 	});
 };
 
@@ -83,9 +223,15 @@ var responseOrder = function(userId, orderId, callback) {
 			}
 			var orderInfo = result[0];
 			// 订单已失效
-			if (orderInfo.status !== '1') {
+			if (orderInfo.status !== '0') {
 				trans.rollback();
 				callback({status: 3002});
+				return;
+			}
+			// 用户自己发起的订单
+			if (orderInfo.initiator === userId) {
+				trans.rollback();
+				callback({status: 3003});
 				return;
 			}
 			trans.commit();
@@ -112,7 +258,7 @@ var responseOrder = function(userId, orderId, callback) {
 				}
 				trans.commit();
 				// 响应订单并扣除余额
-				trans.query('update RT_ORDERS set status=\'' + 1 + '\' where id=' + orderId, function(statuserr, result) {
+				trans.query('update RT_ORDERS set status=\'' + 1 + '\', responder=' + userId + ' where id=' + orderId, function(statuserr, result) {
 					if (statuserr) {
 						trans.rollback();
 						callback({status: 1003, desc: statuserr});
@@ -138,29 +284,14 @@ var responseOrder = function(userId, orderId, callback) {
 	});
 };
 
-// 获取用户可用余额 0-用户不存在 1-成功
-var getAvailableBalance = function(userId, callback) {
-
-	sql.query('select blc_available from USERS where id=' + userId, function(err, result) {
-		if (err) {
-			callback(err);
-		}
-		else {
-			if (result.length >= 1) {
-				callback(null, {status: 1, balance: result.blc_available});
-			}
-			else {
-				callback(null, {status: 0});
-			}
-		}
-	});
-};
-
 module.exports = {
 
 	login: login,
-	createUser: createUser,
-	userExist: userExist,
-	getOrder: getOrder,
-	getAvailableBalance: getAvailableBalance
+	register: register,
+	updatePassword: updatePassword,
+	checkUserExist: checkUserExist,
+	getOrderListToBeResponded: getOrderListToBeResponded,
+	getOrderListByUser: getOrderListByUser,
+	createOrder: createOrder,
+	responseOrder: responseOrder
 };
