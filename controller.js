@@ -100,51 +100,21 @@ var init = function(app) {
 	// 响应订单
 	app.get('/responseOrder', function(req, res) {
 
-		var orderId = req.query.orderid;
-		api.getOrder(orderId, function(err, orderInfo) {
-			if (err) {
-				res.send({status: 1003, desc: err});
+		var userId = req.session.userid;
+		if (userId) {
+			var orderId = req.query.orderid;
+			if (orderId) {
+				api.responseOrder(userId, orderId, function(resultMap) {
+					res.send(resultMap);
+				});
 			}
 			else {
-				if (orderInfo) {
-					if (orderInfo.status !== '0') {
-						res.send({status: 3002});
-					}
-					else {
-						var quota = orderInfo.quota;
-						var value = orderInfo.value;
-						var userId = req.session.userid;
-						if (userId) {
-							api.getAvailableBalance(userId, function(err, resultMap) {
-								if (err) {
-									res.send({status: 1003, desc: err});
-								}
-								else {
-									if (resultMap.status === 1) {
-										var balance = resultMap.balance;
-										if (balance >= quota) {
-											//
-										}
-										else {
-											res.send({status: 2003});
-										}
-									}
-									else {
-										res.send({status: 2002});
-									}
-								}
-							});
-						}
-						else {
-							res.send({status: 1001});
-						}
-					}
-				}
-				else {
-					res.send({status: 3001});
-				}
+				res.send({status: 1002, desc: 'orderid is required'});
 			}
-		});
+		}
+		else {
+			res.send({status: 1001});
+		}
 	});
 
 	// 创建订单

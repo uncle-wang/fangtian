@@ -14,27 +14,34 @@ var options = {
 var pool = mysql.createPool(options);
 
 // 创建连接并执行语句
-var sql = function(query, callback) {
+var _query = function(query, callback) {
 
-	pool.getConnection(function(err, connection) {
+	pool.query(query, function(sqlerror, result) {
 
-		if (err) {
-			callback(err);
-			connection.release();
+		if (sqlerror) {
+			callback(sqlerror);
 			return;
 		}
+		callback(null, result);
+	});
+};
 
-		connection.query(query, function(sqlerror, result) {
+// 事务
+var _trans = function(callback) {
 
-			connection.release();
-			if (sqlerror) {
-				callback(sqlerror);
-				return;
-			}
-			callback(null, result);
-		});
+	// 支持事务
+	var queues = require('mysql-queues');
+	pool.getConnection(function(err, connection) {
+		if (err) {
+			callback(err);
+			return;
+		}
+		connection.connect();
+		queues(connection, true);
+		var trans = connection.startTransaction();
+		callback(null, trans);
 	});
 };
 
 // 模块导出
-module.exports = sql;
+module.exports = {query: _query, trans: _trans};
