@@ -25,11 +25,6 @@ var init = function(app) {
 		var username = req.query.username;
 		var password = req.query.password;
 		if (username && password) {
-			var userId = req.session.userid;
-			if (userId) {
-				res.send({status: 2004});
-				return;
-			}
 			api.login(username, password, function(err, resultMap) {
 				if (err) {
 					res.send({status: 1003, desc: err});
