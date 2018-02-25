@@ -38,6 +38,7 @@ var init = function(app) {
 					if (resultMap.status === 1) {
 						var userInfo = resultMap.userInfo;
 						req.session.userid = userInfo.id;
+						req.session.username = userInfo.name;
 						res.send({status: 1000});
 					}
 					else {
@@ -57,6 +58,7 @@ var init = function(app) {
 		var userId = req.session.userid;
 		if (userId) {
 			delete req.session.userid;
+			delete req.session.username;
 			res.send({status: 1000});
 		}
 		else {
@@ -135,8 +137,9 @@ var init = function(app) {
 	app.get('/getOrderListByUser', function(req, res) {
 
 		var userId = req.session.userid;
-		if (userId) {
-			api.getOrderListByUser(userId, function(err, result) {
+		var username = req.session.username;
+		if (userId && username) {
+			api.getOrderListByUser(username, function(err, result) {
 				if (err) {
 					res.send({status: 1003, desc: err});
 				}
@@ -154,10 +157,11 @@ var init = function(app) {
 	app.get('/responseOrder', function(req, res) {
 
 		var userId = req.session.userid;
-		if (userId) {
+		var username = req.session.username;
+		if (userId && username) {
 			var orderId = req.query.orderid;
 			if (orderId) {
-				api.responseOrder(userId, orderId, function(resultMap) {
+				api.responseOrder(userId, username, orderId, function(resultMap) {
 					res.send(resultMap);
 				});
 			}
@@ -178,7 +182,7 @@ var init = function(app) {
 			var quota = parseInt(req.query.quota);
 			var type = parseInt(req.query.type);
 			if (quota >= 0 && (type === 0 || type === 1)) {
-				api.createOrder(userId, quota, type, function(resultMap) {
+				api.createOrder(userId, username, quota, type, function(resultMap) {
 					res.send(resultMap);
 				});
 			}

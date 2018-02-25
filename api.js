@@ -103,9 +103,9 @@ var getOrderListToBeResponded = function(callback) {
 };
 
 // 查询用户订单列表
-var getOrderListByUser = function(userId, callback) {
+var getOrderListByUser = function(username, callback) {
 
-	sql.query('select * from RT_ORDERS where initiator=' + userId + ' or responder=' + userId, function(err, result) {
+	sql.query('select * from RT_ORDERS where initiator="' + username + '" or responder="' + username + '"', function(err, result) {
 		callback(err, result);
 	});
 };
@@ -125,7 +125,7 @@ var createOrder = function(userId, quota, type, callback) {
 			return;
 		}
 		// 查询用户账户余额并加排他锁
-		connection.query('select blc_available,blc_frozen from USERS where id=' + userId + ' for update', function(usererr, result) {
+		connection.query('select name,blc_available,blc_frozen from USERS where id=' + userId + ' for update', function(usererr, result) {
 			if (usererr) {
 				connection.rollback();
 				callback({status: 1003, desc: usererr});
@@ -147,7 +147,7 @@ var createOrder = function(userId, quota, type, callback) {
 			// 查询是否有匹配订单，若有，直接匹配，若没有，创建新订单
 			var matchType = Math.abs(type - 1);
 			// 匹配订单规则：type相反、等额、待处理、发起人与当前用户不冲突
-			connection.query('select * from RT_ORDERS where type=' + matchType + ' and quota=' + quota + ' and status=\'' + 0 + '\' and initiator!=' + userId + ' for update', function(matcherr, result) {
+			connection.query('select * from RT_ORDERS where type=' + matchType + ' and quota=' + quota + ' and status=\'' + 0 + '\' and initiator!="' + userInfo.name + '" for update', function(matcherr, result) {
 				if (matcherr) {
 					connection.rollback();
 					callback({status: 1003, desc: matcherr});
@@ -157,7 +157,7 @@ var createOrder = function(userId, quota, type, callback) {
 				if (result.length >= 1) {
 					var orderInfo = result[0];
 					// 响应订单并扣除余额
-					connection.query('update RT_ORDERS set status=\'' + 1 + '\',responder=' + userId + ' where id=' + orderInfo.orderId, function(statuserr, result) {
+					connection.query('update RT_ORDERS set status=\'' + 1 + '\',responder="' + userInfo.name + '" where id="' + orderInfo.id + '"', function(statuserr, result) {
 						if (statuserr) {
 							connection.rollback();
 							callback({status: 1003, desc: statuserr});
@@ -187,7 +187,7 @@ var createOrder = function(userId, quota, type, callback) {
 				}
 				// 不存在匹配订单
 				else {
-					connection.query('insert into RT_ORDERS(initiator,quota,type) values(' + userId + ',' + quota + ',' + type + ')', function(createerr, result) {
+					connection.query('insert into RT_ORDERS(initiator,quota,type) values("' + userInfo.name + '",' + quota + ',' + type + ')', function(createerr, result) {
 						if (createerr) {
 							connection.rollback();
 							callback({status: 1003, desc: createerr});
@@ -220,7 +220,7 @@ var createOrder = function(userId, quota, type, callback) {
 };
 
 // 响应订单 0-sql错误 1-成功 2-订单不存在 3-订单已失效 4-用户不存在 5-用户余额不足
-var responseOrder = function(userId, orderId, callback) {
+var responseOrder = function(userId, username, orderId, callback) {
 
 	sql.trans(function(transerr, connection) {
 
@@ -229,7 +229,7 @@ var responseOrder = function(userId, orderId, callback) {
 			return;
 		}
 		// 查询该订单并加排他锁
-		connection.query('select * from RT_ORDERS where id=' + orderId + ' for update', function(ordererr, result) {
+		connection.query('select * from RT_ORDERS where id="' + orderId + '" for update', function(ordererr, result) {
 			if (ordererr) {
 				connection.rollback();
 				callback({status: 1003, desc: ordererr});
@@ -249,14 +249,14 @@ var responseOrder = function(userId, orderId, callback) {
 				return;
 			}
 			// 用户自己发起的订单
-			if (orderInfo.initiator === userId) {
+			if (orderInfo.initiator === username) {
 				connection.rollback();
 				callback({status: 3003});
 				return;
 			}
 			var quota = orderInfo.quota;
 			// 查询用户余额并加排他锁
-			connection.query('select blc_available,blc_frozen from USERS where id=' + userId + ' for update', function(usererr, result) {
+			connection.query('select name,blc_available,blc_frozen from USERS where id=' + userId + ' for update', function(usererr, result) {
 				if (usererr) {
 					connection.rollback();
 					callback({status: 1003, desc: usererr});
@@ -276,7 +276,7 @@ var responseOrder = function(userId, orderId, callback) {
 					return;
 				}
 				// 响应订单并扣除余额
-				connection.query('update RT_ORDERS set status=\'' + 1 + '\', responder=' + userId + ' where id=' + orderId, function(statuserr, result) {
+				connection.query('update RT_ORDERS set status=\'' + 1 + '\', responder="' + userInfo.name + '" where id="' + orderId + '"', function(statuserr, result) {
 					if (statuserr) {
 						connection.rollback();
 						callback({status: 1003, desc: statuserr});
