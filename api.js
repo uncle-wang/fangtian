@@ -30,37 +30,39 @@ var login = function(username, password, callback) {
 // 注册 1-成功 0-数据库异常
 var register = function(username, password, nickname, callback) {
 
-	sql.trans(function(transerr, trans) {
+	sql.trans(function(transerr, connection) {
 		if (transerr) {
 			callback({status: 1003, desc: transerr});
 			return;
 		}
-		trans.query('select id from USERS where name="' + username + '" for update', function(usererr, result) {
+		connection.query('select id from USERS where name="' + username + '" for update', function(usererr, result) {
 			if (usererr) {
-				trans.rollback();
+				connection.rollback();
 				callback({status: 1003, desc: usererr});
 				return;
 			}
 			if (result.length >= 1) {
-				trans.rollback();
+				connection.rollback();
 				callback({status: 2001});
 				return;
 			}
-			trans.commit();
-			trans.query('insert into USERS(name,password,nick) values("' + username + '","' + md5(password) + '","' + nickname + '")', function(createerr, result) {
+			connection.query('insert into USERS(name,password,nick) values("' + username + '","' + md5(password) + '","' + nickname + '")', function(createerr, result) {
 				if (createerr) {
-					trans.rollback();
+					connection.rollback();
 					callback(createerr);
 					return;
 				}
-				trans.commit();
-				callback(null, {status: 1000, userId: result.insertId});
+				connection.commit(function(commiterr) {
+					if (commiterr) {
+						connection.rollback();
+						callback({status: 1003, desc: err});
+					}
+					else {
+						callback({status: 1000, userId: result.insertId});
+					}
+				});
 			});
 		});
-		trans.execute();
-	});
-	// 创建新用户
-	sql.query('insert into USERS(name,password,nick) values("' + username + '","' + md5(password) + '","' + nickname + '")', function(err, result) {
 	});
 };
 
@@ -110,11 +112,6 @@ var getOrderListByUser = function(username, callback) {
 	});
 };
 
-// TODO 自动匹配响应优先级处理
-// TODO 自动匹配响应优先级处理
-// TODO 自动匹配响应优先级处理
-// TODO 自动匹配响应优先级处理
-// TODO 自动匹配响应优先级处理
 // 创建订单
 var createOrder = function(userId, quota, type, callback) {
 
@@ -147,7 +144,7 @@ var createOrder = function(userId, quota, type, callback) {
 			// 查询是否有匹配订单，若有，直接匹配，若没有，创建新订单
 			var matchType = Math.abs(type - 1);
 			// 匹配订单规则：type相反、等额、待处理、发起人与当前用户不冲突
-			connection.query('select * from RT_ORDERS where type=' + matchType + ' and quota=' + quota + ' and status=\'' + 0 + '\' and initiator!="' + userInfo.name + '" for update', function(matcherr, result) {
+			connection.query('select * from RT_ORDERS where type=' + matchType + ' and quota=' + quota + ' and status=\'' + 0 + '\' and initiator!="' + userInfo.name + '" order by create_time desc for update', function(matcherr, result) {
 				if (matcherr) {
 					connection.rollback();
 					callback({status: 1003, desc: matcherr});

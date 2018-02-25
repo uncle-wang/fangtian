@@ -75,6 +75,10 @@ var init = function(app) {
 
 		if (username && password && nickname) {
 			api.register(username, password, nickname, function(resultMap) {
+				if (resultMap.status === 1000) {
+					req.session.userid = resultMap.userId;
+					req.session.username = username;
+				}
 				res.send(resultMap);
 			});
 		}
@@ -182,7 +186,7 @@ var init = function(app) {
 			var quota = parseInt(req.query.quota);
 			var type = parseInt(req.query.type);
 			if (quota >= 0 && (type === 0 || type === 1)) {
-				api.createOrder(userId, username, quota, type, function(resultMap) {
+				api.createOrder(userId, quota, type, function(resultMap) {
 					res.send(resultMap);
 				});
 			}
