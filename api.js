@@ -38,17 +38,20 @@ var register = function(username, password, nickname, callback) {
 		connection.query('select id from USERS where name="' + username + '" for update', function(usererr, result) {
 			if (usererr) {
 				connection.rollback();
+				connection.release();
 				callback({status: 1003, desc: usererr});
 				return;
 			}
 			if (result.length >= 1) {
 				connection.rollback();
+				connection.release();
 				callback({status: 2001});
 				return;
 			}
 			connection.query('insert into USERS(name,password,nick) values("' + username + '","' + md5(password) + '","' + nickname + '")', function(createerr, result) {
 				if (createerr) {
 					connection.rollback();
+					connection.release();
 					callback(createerr);
 					return;
 				}
@@ -60,6 +63,7 @@ var register = function(username, password, nickname, callback) {
 					else {
 						callback({status: 1000, userId: result.insertId});
 					}
+					connection.release();
 				});
 			});
 		});
@@ -118,6 +122,7 @@ var createOrder = function(userId, quota, type, callback) {
 	sql.trans(function(transerr, connection) {
 
 		if (transerr) {
+			connection.release();
 			callback({status: 1003, desc: transerr});
 			return;
 		}
@@ -125,12 +130,14 @@ var createOrder = function(userId, quota, type, callback) {
 		connection.query('select name,blc_available,blc_frozen from USERS where id=' + userId + ' for update', function(usererr, result) {
 			if (usererr) {
 				connection.rollback();
+				connection.release();
 				callback({status: 1003, desc: usererr});
 				return;
 			}
 			// 用户不存在
 			if (result.length < 1) {
 				connection.rollback();
+				connection.release();
 				callback({status: 2002});
 				return;
 			}
@@ -138,6 +145,7 @@ var createOrder = function(userId, quota, type, callback) {
 			// 用户余额不足
 			if (userInfo.blc_available < quota) {
 				connection.rollback();
+				connection.release();
 				callback({status: 2003});
 				return;
 			}
@@ -147,6 +155,7 @@ var createOrder = function(userId, quota, type, callback) {
 			connection.query('select * from RT_ORDERS where type=' + matchType + ' and quota=' + quota + ' and status=\'' + 0 + '\' and initiator!="' + userInfo.name + '" order by create_time desc for update', function(matcherr, result) {
 				if (matcherr) {
 					connection.rollback();
+					connection.release();
 					callback({status: 1003, desc: matcherr});
 					return;
 				}
@@ -157,12 +166,14 @@ var createOrder = function(userId, quota, type, callback) {
 					connection.query('update RT_ORDERS set status=\'' + 1 + '\',responder="' + userInfo.name + '" where id="' + orderInfo.id + '"', function(statuserr, result) {
 						if (statuserr) {
 							connection.rollback();
+							connection.release();
 							callback({status: 1003, desc: statuserr});
 						}
 						else {
 							connection.query('update USERS set blc_available=' + (userInfo.blc_available - quota) + ',blc_frozen=' + (userInfo.blc_frozen + quota) + ' where id=' + userId, function(balanceerr, result) {
 								if (balanceerr) {
 									connection.rollback();
+									connection.release();
 									callback({status: 1003, desc: balanceerr});
 								}
 								else {
@@ -176,6 +187,7 @@ var createOrder = function(userId, quota, type, callback) {
 											// 响应创建
 											callback({status: 1000, type: 1});
 										}
+										connection.release();
 									});
 								}
 							});
@@ -187,12 +199,14 @@ var createOrder = function(userId, quota, type, callback) {
 					connection.query('insert into RT_ORDERS(initiator,quota,type) values("' + userInfo.name + '",' + quota + ',' + type + ')', function(createerr, result) {
 						if (createerr) {
 							connection.rollback();
+							connection.release();
 							callback({status: 1003, desc: createerr});
 							return;
 						}
 						connection.query('update USERS set blc_available=' + (userInfo.blc_available - quota) + ',blc_frozen=' + (userInfo.blc_frozen + quota) + ' where id=' + userId, function(balanceerr, result) {
 							if (balanceerr) {
 								connection.rollback();
+								connection.release();
 								callback({status: 1003, desc: balanceerr});
 							}
 							else {
@@ -206,6 +220,7 @@ var createOrder = function(userId, quota, type, callback) {
 										// 直接创建
 										callback({status: 1000, type: 0});
 									}
+									connection.release();
 								});
 							}
 						});
@@ -222,6 +237,7 @@ var responseOrder = function(userId, username, orderId, callback) {
 	sql.trans(function(transerr, connection) {
 
 		if (transerr) {
+			connection.release();
 			callback({status: 1003, desc: transerr});
 			return;
 		}
@@ -229,12 +245,14 @@ var responseOrder = function(userId, username, orderId, callback) {
 		connection.query('select * from RT_ORDERS where id="' + orderId + '" for update', function(ordererr, result) {
 			if (ordererr) {
 				connection.rollback();
+				connection.release();
 				callback({status: 1003, desc: ordererr});
 				return;
 			}
 			// 订单不存在
 			if (result.length < 1) {
 				connection.rollback();
+				connection.release();
 				callback({status: 3001});
 				return;
 			}
@@ -242,12 +260,14 @@ var responseOrder = function(userId, username, orderId, callback) {
 			// 订单已失效
 			if (orderInfo.status !== '0') {
 				connection.rollback();
+				connection.release();
 				callback({status: 3002});
 				return;
 			}
 			// 用户自己发起的订单
 			if (orderInfo.initiator === username) {
 				connection.rollback();
+				connection.release();
 				callback({status: 3003});
 				return;
 			}
@@ -256,12 +276,14 @@ var responseOrder = function(userId, username, orderId, callback) {
 			connection.query('select name,blc_available,blc_frozen from USERS where id=' + userId + ' for update', function(usererr, result) {
 				if (usererr) {
 					connection.rollback();
+					connection.release();
 					callback({status: 1003, desc: usererr});
 					return;
 				}
 				// 用户不存在
 				if (result.length < 1) {
 					connection.rollback();
+					connection.release();
 					callback({status: 2002});
 					return;
 				}
@@ -269,6 +291,7 @@ var responseOrder = function(userId, username, orderId, callback) {
 				// 用户余额不足
 				if (userInfo.blc_available < quota) {
 					connection.rollback();
+					connection.release();
 					callback({status: 2003});
 					return;
 				}
@@ -276,12 +299,14 @@ var responseOrder = function(userId, username, orderId, callback) {
 				connection.query('update RT_ORDERS set status=\'' + 1 + '\', responder="' + userInfo.name + '" where id="' + orderId + '"', function(statuserr, result) {
 					if (statuserr) {
 						connection.rollback();
+						connection.release();
 						callback({status: 1003, desc: statuserr});
 					}
 					else {
 						connection.query('update USERS set blc_available=' + (userInfo.blc_available - quota) + ',blc_frozen=' + (userInfo.blc_frozen + quota) + ' where id=' + userId, function(balanceerr, result) {
 							if (balanceerr) {
 								connection.rollback();
+								connection.release();
 								callback({status: 1003, desc: balanceerr});
 							}
 							else {
@@ -294,6 +319,7 @@ var responseOrder = function(userId, username, orderId, callback) {
 									else {
 										callback({status: 1000});
 									}
+									connection.release();
 								});
 							}
 						});

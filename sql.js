@@ -32,11 +32,13 @@ var _trans = function(callback) {
 	// 支持事务
 	pool.getConnection(function(err, connection) {
 		if (err) {
+			connection.release();
 			callback(err);
 			return;
 		}
 		connection.beginTransaction(function(errb) {
 			if (errb) {
+				connection.release();
 				callback(errb);
 				return;
 			}
