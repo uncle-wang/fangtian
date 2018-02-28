@@ -27,6 +27,30 @@ var login = function(username, password, callback) {
 	});
 };
 
+// 更新上次登录时间
+var updateLastLoginTime = function(userid) {
+
+	sql.query('update USERS set last_login_time=' + Date.now() + ' where id=' + userid);
+};
+
+// 获取用户信息
+var getUserInfo = function(userId, callback) {
+
+	sql.query('select name,nick,blc_available,blc_frozen,alipay,last_login_time from USERS where id=' + userId, function(err, result) {
+		if (err) {
+			callback({status: 0, err: err});
+		}
+		else {
+			if (result.length >= 1) {
+				callback({status: 1, info: result[0]});
+			}
+			else {
+				callback({status: 2})
+			}
+		}
+	});
+};
+
 // 注册 1-成功 0-数据库异常
 var register = function(username, password, nickname, callback) {
 
@@ -48,7 +72,7 @@ var register = function(username, password, nickname, callback) {
 				callback({status: 2001});
 				return;
 			}
-			connection.query('insert into USERS(name,password,nick) values("' + username + '","' + md5(password) + '","' + nickname + '")', function(createerr, result) {
+			connection.query('insert into USERS(name,password,nick,create_time) values("' + username + '","' + md5(password) + '","' + nickname + '", ' + Date.now() + ')', function(createerr, result) {
 				if (createerr) {
 					connection.rollback();
 					connection.release();
@@ -103,7 +127,7 @@ var checkUserExist = function(username, callback) {
 // 查询待响应订单列表
 var getOrderListToBeResponded = function(callback) {
 
-	sql.query('select * from RT_ORDERS where status=\'' + 0 + '\'', function(err, result) {
+	sql.query('select * from ORDERS where status="' + 0 + '"', function(err, result) {
 		callback(err, result);
 	});
 };
@@ -111,7 +135,7 @@ var getOrderListToBeResponded = function(callback) {
 // 查询用户订单列表
 var getOrderListByUser = function(username, callback) {
 
-	sql.query('select * from RT_ORDERS where initiator="' + username + '" or responder="' + username + '"', function(err, result) {
+	sql.query('select * from ORDERS where initiator="' + username + '" or responder="' + username + '"', function(err, result) {
 		callback(err, result);
 	});
 };
@@ -152,7 +176,7 @@ var createOrder = function(userId, quota, type, callback) {
 			// 查询是否有匹配订单，若有，直接匹配，若没有，创建新订单
 			var matchType = Math.abs(type - 1);
 			// 匹配订单规则：type相反、等额、待处理、发起人与当前用户不冲突
-			connection.query('select * from RT_ORDERS where type=' + matchType + ' and quota=' + quota + ' and status=\'' + 0 + '\' and initiator!="' + userInfo.name + '" order by create_time desc for update', function(matcherr, result) {
+			connection.query('select * from ORDERS where type=' + matchType + ' and quota=' + quota + ' and status="' + 0 + '" and initiator!="' + userInfo.name + '" order by create_time desc for update', function(matcherr, result) {
 				if (matcherr) {
 					connection.rollback();
 					connection.release();
@@ -163,7 +187,7 @@ var createOrder = function(userId, quota, type, callback) {
 				if (result.length >= 1) {
 					var orderInfo = result[0];
 					// 响应订单并扣除余额
-					connection.query('update RT_ORDERS set status=\'' + 1 + '\',responder="' + userInfo.name + '" where id="' + orderInfo.id + '"', function(statuserr, result) {
+					connection.query('update ORDERS set status="' + 1 + '",responder="' + userInfo.name + '", respond_time=' + Date.now() + ' where id="' + orderInfo.id + '"', function(statuserr, result) {
 						if (statuserr) {
 							connection.rollback();
 							connection.release();
@@ -196,7 +220,7 @@ var createOrder = function(userId, quota, type, callback) {
 				}
 				// 不存在匹配订单
 				else {
-					connection.query('insert into RT_ORDERS(initiator,quota,type) values("' + userInfo.name + '",' + quota + ',' + type + ')', function(createerr, result) {
+					connection.query('insert into ORDERS(initiator,quota,type,create_time) values("' + userInfo.name + '",' + quota + ',' + type + ',' + Date.now() + ')', function(createerr, result) {
 						if (createerr) {
 							connection.rollback();
 							connection.release();
@@ -242,7 +266,7 @@ var responseOrder = function(userId, username, orderId, callback) {
 			return;
 		}
 		// 查询该订单并加排他锁
-		connection.query('select * from RT_ORDERS where id="' + orderId + '" for update', function(ordererr, result) {
+		connection.query('select * from ORDERS where id="' + orderId + '" for update', function(ordererr, result) {
 			if (ordererr) {
 				connection.rollback();
 				connection.release();
@@ -296,7 +320,7 @@ var responseOrder = function(userId, username, orderId, callback) {
 					return;
 				}
 				// 响应订单并扣除余额
-				connection.query('update RT_ORDERS set status=\'' + 1 + '\', responder="' + userInfo.name + '" where id="' + orderId + '"', function(statuserr, result) {
+				connection.query('update ORDERS set status="' + 1 + '", responder="' + userInfo.name + '", respond_time=' + Date.now() + ' where id="' + orderId + '"', function(statuserr, result) {
 					if (statuserr) {
 						connection.rollback();
 						connection.release();
@@ -333,6 +357,8 @@ var responseOrder = function(userId, username, orderId, callback) {
 module.exports = {
 
 	login: login,
+	updateLastLoginTime: updateLastLoginTime,
+	getUserInfo: getUserInfo,
 	register: register,
 	updatePassword: updatePassword,
 	checkUserExist: checkUserExist,

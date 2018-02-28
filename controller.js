@@ -35,6 +35,7 @@ var init = function(app) {
 						req.session.userid = userInfo.id;
 						req.session.username = userInfo.name;
 						res.send({status: 1000});
+						api.updateLastLoginTime(userInfo.id);
 					}
 					else {
 						res.send({status: 2005, desc: 'username or password wrong'});
@@ -61,6 +62,30 @@ var init = function(app) {
 		}
 	});
 
+	// 获取登录信息
+	app.get('/getLoginStatus', function(req, res) {
+
+		var userId = req.session.userid;
+		if (userId) {
+			api.getUserInfo(userId, function(resultMap) {
+				if (resultMap.status === 1) {
+					res.send({status: 1000, signed: true, info: resultMap.info});
+				}
+				else {
+					if (resultMap.status === 0) {
+						res.send({status: 1003, desc: resultMap.err});
+					}
+					else {
+						res.send({status: 2002});
+					}
+				}
+			});
+		}
+		else {
+			res.send({status: 1000, signed: false});
+		}
+	});
+
 	// 注册
 	app.get('/register', function(req, res) {
 
@@ -73,6 +98,7 @@ var init = function(app) {
 				if (resultMap.status === 1000) {
 					req.session.userid = resultMap.userId;
 					req.session.username = username;
+					api.updateLastLoginTime(resultMap.userId);
 				}
 				res.send(resultMap);
 			});

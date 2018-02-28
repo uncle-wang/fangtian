@@ -19,10 +19,10 @@ var _query = function(query, callback) {
 	pool.query(query, function(sqlerror, result) {
 
 		if (sqlerror) {
-			callback(sqlerror);
+			callback && callback(sqlerror);
 			return;
 		}
-		callback(null, result);
+		callback && callback(null, result);
 	});
 };
 
