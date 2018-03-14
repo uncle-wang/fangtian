@@ -17,7 +17,7 @@ var api = require('./api');
 	3003-订单发起人与响应人冲突
 */
 
-var init = function(app) {
+module.exports = function(app) {
 
 	// 登陆
 	app.get('/sign', function(req, res) {
@@ -220,5 +220,3 @@ var init = function(app) {
 		}
 	});
 };
-
-module.exports = init;

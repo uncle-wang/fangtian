@@ -9,8 +9,9 @@ app.use(session({
 }));
 
 // 加载controller
-var controller = require('./controller');
-controller(app);
+require('./controllers')(app);
+// 加载schedule任务
+require('./schedules');
 
 app.use(function(req, res) {
 

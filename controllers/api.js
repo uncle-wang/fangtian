@@ -1,7 +1,7 @@
 // md5
 var md5 = require('md5');
 // 加载sql模块
-var sql = require('./sql');
+var sql = require('./../sql');
 
 // 登陆 1-成功 0-用户不存在 2-密码错误
 var login = function(username, password, callback) {
