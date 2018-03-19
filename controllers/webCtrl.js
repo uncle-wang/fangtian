@@ -1,5 +1,5 @@
 // 加载api模块
-var api = require('./api');
+var api = require('./../api');
 
 /*
 	状态码
