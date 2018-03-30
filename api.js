@@ -3,6 +3,12 @@ var md5 = require('md5');
 // 加载sql模块
 var sql = require('./../sql');
 
+var _release = function(connection) {
+
+	connection.rollback && connection.rollback();
+	connection.release && connection.release();
+};
+
 // 登陆 1-成功 0-用户不存在 2-密码错误
 var login = function(username, password, callback) {
 
@@ -61,33 +67,30 @@ var register = function(username, password, nickname, callback) {
 		}
 		connection.query('select id from users where name="' + username + '" for update', function(usererr, result) {
 			if (usererr) {
-				connection.rollback();
-				connection.release();
+				_release(connection);
 				callback({status: 1003, desc: usererr});
 				return;
 			}
 			if (result.length >= 1) {
-				connection.rollback();
-				connection.release();
+				_release(connection);
 				callback({status: 2001});
 				return;
 			}
 			connection.query('insert into users(name,password,nick,create_time) values("' + username + '","' + md5(password) + '","' + nickname + '", ' + Date.now() + ')', function(createerr, result) {
 				if (createerr) {
-					connection.rollback();
-					connection.release();
+					_release(connection);
 					callback(createerr);
 					return;
 				}
 				connection.commit(function(commiterr) {
 					if (commiterr) {
-						connection.rollback();
+						_release(connection);
 						callback({status: 1003, desc: err});
 					}
 					else {
-						callback({status: 1000, userId: result.insertId});
+						connection.release();
+						callback({status: 1000});
 					}
-					connection.release();
 				});
 			});
 		});
@@ -97,7 +100,7 @@ var register = function(username, password, nickname, callback) {
 // 修改密码
 var updatePassword = function(userId, newpassword, callback) {
 
-	sql.query('update users set password="' + md5(newpassword) + '" where id=' + userId, function(err, result) {
+	sql.query('update users set password="' + md5(newpassword) + '" where id="' + userId + '"', function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
@@ -158,55 +161,92 @@ var getConfessedGameHistory = function(callback) {
 	});
 };
 
-// 公开局下单 0-数据库错误,1-成功,2-游戏id不存在,3-已封盘
+// 公开局下单 0-数据库错误,1-成功,2-游戏id不存在,3-已封盘,4-余额不足或账号异常
 var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 
-	sql.trans(function(transerr, connection) {
+	sql.trans(function(transerr, conn) {
 
 		if (transerr) {
-			connection.release();
+			_release(conn);
 			callback({status: 0, error: transerr});
 			return;
 		}
-		connection.query('select * from confessed_games where id=' + gameid + ' for update', function(gameerr, gameResult) {
+		// 查询当期游戏状态
+		conn.query('select * from confessed_games where id=' + gameid + ' for update', function(gameerr, gameResult) {
 
 			if (gameerr) {
-				connection.rollback();
-				connection.release();
+				_release(conn);
 				callback({status: 0, error: gameerr});
 				return;
 			}
-			// 订单不存在
+			// 期号不存在
 			if (gameResult.length <= 0) {
-				connection.rollback();
-				connection.release();
+				_release(conn);
 				callback({status: 2});
 				return;
 			}
-			// 订单状态不匹配
+			// 当期游戏状态不匹配
 			var gameInfo = gameResult[0];
 			if (gameInfo.status !== '0') {
-				connection.rollback();
-				connection.release();
+				_release(conn);
 				callback({status: 3});
 				return;
 			}
-			connection.query('insert into confessed_orders(type,game_id,amount,create_time) values(' + type + ',"' + gameid + '",' + quota + ',' + Date.now() + ')', function(ordererr, orderResult) {
-				if (ordererr) {
-					connection.rollback();
-					connection.release();
-					callback({status: 0, error: ordererr});
+			// 查询用户余额
+			conn.query('select balance from users where id=' + userid + ' for update', function(usererr, userResult) {
+				if (usererr) {
+					_release(conn);
+					callback({status: 0, error: usererr});
 					return;
 				}
-				connection.commit(function(commiterr) {
-					if (commiterr) {
-						connection.rollback();
-						callback({status: 0, error: commiterr});
+				// 余额不足
+				if (userResult.length <= 0 || userResult[0].balance < quota) {
+					_release(conn);
+					callback({status: 4});
+					return;
+				}
+				// 扣款
+				var newBalance = userResult[0].balance - quota;
+				conn.query('update users set balance=' + newBalance + ' where id=' + userid, function(balerr, balResult) {
+					if (balerr) {
+						_release(conn);
+						callback({status: 0, error: balerr});
+						return;
 					}
-					else {
-						callback({status: 1});
-					}
-					connection.release();
+					// 创建订单
+					conn.query('insert into confessed_orders(type,game_id,amount,create_time) values(' + type + ',"' + gameid + '",' + quota + ',' + Date.now() + ')', function(ordererr, orderResult) {
+						if (ordererr) {
+							_release(conn);
+							callback({status: 0, error: ordererr});
+							return;
+						}
+						// 更新本场数据
+						var columnName, value;
+						if (type === 0) {
+							columnName = 'even_amount';
+						}
+						else {
+							columnName = 'odd_amount';
+						}
+						value = gameInfo[columnName] + quota;
+						conn.query('update confessed_games set ' + columnName + '=' + value + ' where id=' + gameid, function(amounterr, amountResult) {
+							if (amounterr) {
+								_release(conn);
+								callback({status: 0, error: amounterr});
+								return;
+							}
+							conn.commit(function(commiterr) {
+								if (commiterr) {
+									_release(conn);
+									callback({status: 0, error: commiterr});
+								}
+								else {
+									conn.release();
+									callback({status: 1});
+								}
+							});
+						});
+					});
 				});
 			});
 		});

@@ -34,6 +34,7 @@ module.exports = function(app) {
 						var userInfo = resultMap.userInfo;
 						req.session.userid = userInfo.id;
 						req.session.username = userInfo.name;
+						req.session.balance = userInfo.balance;
 						res.send({status: 1000});
 						api.updateLastLoginTime(userInfo.id);
 					}
@@ -55,6 +56,7 @@ module.exports = function(app) {
 		if (userId) {
 			delete req.session.userid;
 			delete req.session.username;
+			delete req.session.balance;
 			res.send({status: 1000});
 		}
 		else {
@@ -95,11 +97,6 @@ module.exports = function(app) {
 
 		if (username && password && nickname) {
 			api.register(username, password, nickname, function(resultMap) {
-				if (resultMap.status === 1000) {
-					req.session.userid = resultMap.userId;
-					req.session.username = username;
-					api.updateLastLoginTime(resultMap.userId);
-				}
 				res.send(resultMap);
 			});
 		}

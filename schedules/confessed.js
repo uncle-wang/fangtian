@@ -35,7 +35,7 @@ var createGame = function(callback) {
 
 		var timeStamp = Date.now();
 		var period = _getCurrentDateStr();
-		sql.query('insert into confessed_games(period,create_time) values("' + period + '",' + timeStamp + ')', function(err, result) {
+		sql.query('insert into confessed_games(id,create_time) values("' + period + '",' + timeStamp + ')', function(err, result) {
 			if (err) {
 				callback(err);
 				return;
@@ -49,7 +49,7 @@ var createGame = function(callback) {
 var disableGame = function(callback) {
 
 	var period = _getCurrentDateStr();
-	sql.query('select id from confessed_games where status="0" and period="' + period + '"', function(err, result) {
+	sql.query('select id from confessed_games where status="0" and id="' + period + '"', function(err, result) {
 		if (err) {
 			callback(err);
 			return;
