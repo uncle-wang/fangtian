@@ -1,14 +1,7 @@
 // mysql
 var mysql = require('mysql');
-
-// 连接配置
-var options = {
-
-	host: 'localhost',
-	user: 'root',
-	password: 'mysql',
-	database: 'ft_test'
-};
+// config
+var options = require('./config').MYSQL;
 
 // 连接池
 var pool = mysql.createPool(options);
