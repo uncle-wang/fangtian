@@ -124,48 +124,78 @@ var createRecharge = function(userid, quota, callback) {
 		}
 		callback({status: 1, orderId: result.insertId});
 	});
+};
 
-/*	sql.trans(function(transerr, conn) {
+// 支付充值订单
+var payRecharge = function(rechargeId, callback) {
+
+	sql.trans(function(transerr, conn) {
 
 		if (transerr) {
-			callback({status: 1003, desc: transerr});
+			callback({status: 0, error: transerr});
 			return;
 		}
-		conn.query('select balance from users where id=' + userid + ' for update', function(usrerr, result) {
-			if (usrerr) {
+		conn.query('select * from recharge where id=' + rechargeId + ' for update', function(ordererr, orderresult) {
+			if (ordererr) {
 				_release(conn);
-				callback({status: 1003, desc: usrerr});
+				callback({status: 0, error: ordererr});
 				return;
 			}
-			var userInfo = result[0];
-			if (userInfo) {
-				var newBalance = userInfo.balance + quota;
-				conn.query('update users set balance=' + newBalance + ' where id=' + userid, function(seterr, result) {
-					if (seterr) {
-						_release(conn);
-						callback({status: 1003, desc: seterr});
-						return;
-					}
-					conn.commit(function(comerr) {
-						if (comerr) {
+			if (orderresult.length <= 0) {
+				_release(conn);
+				callback({status: 2});
+				return;
+			}
+			var rechargeInfo = orderresult[0];
+			if (rechargeInfo.status !== '0') {
+				_release(conn);
+				callback({status: 3});
+				return;
+			}
+			var userid = rechargeInfo.user;
+			conn.query('select balance from users where id=' + userid + ' for update', function(usrerr, userresult) {
+				if (usrerr) {
+					_release(conn);
+					callback({status: 0, error: usrerr});
+					return;
+				}
+				var userInfo = userresult[0];
+				if (userInfo) {
+					var newBalance = userInfo.balance + rechargeInfo.quota;
+					conn.query('update users set balance=' + newBalance + ' where id=' + userid, function(seterr) {
+						if (seterr) {
 							_release(conn);
-							callback({status: 1003, desc: comerr});
+							callback({status: 0, error: seterr});
 							return;
 						}
-						conn.release();
-						callback({status: 1000});
-						return;
+						conn.query('update recharge set status="1" where id=' + rechargeId, function(payerr) {
+							if (payerr) {
+								_release(conn);
+								callback({status: 0, error: payerr});
+								return;
+							}
+							conn.commit(function(comerr) {
+								if (comerr) {
+									_release(conn);
+									callback({status: 0, error: comerr});
+									return;
+								}
+								conn.release();
+								callback({status: 1});
+								return;
+							});
+						});
 					});
-				});
-			}
-			else {
-				_release(conn);
-				callback({status: 2002});
-				return;
-			}
+				}
+				else {
+					_release(conn);
+					callback({status: 4});
+					return;
+				}
+			});
 		});
 	});
-*/};
+};
 
 // 验证用户名是否已存在
 var checkUserExist = function(username, callback) {
@@ -325,6 +355,7 @@ module.exports = {
 	register: register,
 	updatePassword: updatePassword,
 	createRecharge: createRecharge,
+	payRecharge: payRecharge,
 	checkUserExist: checkUserExist,
 	getCurrentConfessedGame: getCurrentConfessedGame,
 	getConfessedGameHistory: getConfessedGameHistory,

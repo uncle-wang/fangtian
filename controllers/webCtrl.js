@@ -162,7 +162,6 @@ module.exports = function(app) {
 					var orderInfo = 'fangtian';
 					var md5 = crypto.createHash('md5');
 					var str = apiKey + apiUser + orderId + orderInfo + price + redirect + type;
-					console.log(str);
 					md5.update(str);
 					var signature = md5.digest('hex');
 					res.send({status: 1000, payInfo: {
@@ -184,11 +183,25 @@ module.exports = function(app) {
 	// 支付回调
 	app.post('/payCallback', function(req, res) {
 
+		var apiKey = PAYCONFIG.APIKEY;
 		var orderId = req.body.order_id;
+		var orderInfo = req.body.order_info;
+		var ppzOrderId = req.body.ppz_order_id;
 		var price = req.body.price;
 		var realPrice = req.body.real_price;
 		var signature = req.body.signature;
-		console.log(req.body);
+		// 校验
+		var md5 = crypto.createHash('md5');
+		md5.update(apiKey + orderId + orderInfo + ppzOrderId + price + realPrice);
+		if (signature === md5.digest('hex')) {
+			price = Number(price);
+			realPrice = Number(realPrice);
+			// 实际支付允许0.02元的误差
+			if (price - realPrice <= 0.02) {
+				price = Math.min(price, realPrice);
+				api.payRecharge(orderId, parseInt(price * 6000));
+			}
+		}
 		res.send({status: 1000});
 	});
 
