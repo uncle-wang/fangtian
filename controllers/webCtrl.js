@@ -159,7 +159,7 @@ module.exports = function(app) {
 			api.createRecharge(userId, quota, function(resultMap) {
 				if (resultMap.status === 1) {
 					var orderId = resultMap.orderId;
-					var orderInfo = 'fangtian';
+					var orderInfo = PAYCONFIG.CALLBACKKEY;
 					var md5 = crypto.createHash('md5');
 					var str = apiKey + apiUser + orderId + orderInfo + price + redirect + type;
 					md5.update(str);
@@ -185,14 +185,13 @@ module.exports = function(app) {
 
 		var apiKey = PAYCONFIG.APIKEY;
 		var orderId = req.body.order_id;
-		var orderInfo = req.body.order_info;
 		var ppzOrderId = req.body.ppz_order_id;
 		var price = req.body.price;
 		var realPrice = req.body.real_price;
 		var signature = req.body.signature;
 		// 校验
 		var md5 = crypto.createHash('md5');
-		md5.update(apiKey + orderId + orderInfo + ppzOrderId + price + realPrice);
+		md5.update(apiKey + orderId + PAYCONFIG.CALLBACKKEY + ppzOrderId + price + realPrice);
 		if (signature === md5.digest('hex')) {
 			price = Number(price);
 			realPrice = Number(realPrice);
