@@ -1,4 +1,5 @@
 var crypto = require('crypto');
+var bodyParser = require('body-parser');
 // 加载api模块
 var api = require('./../api');
 // 加载配置文件
@@ -23,6 +24,9 @@ var PAYCONFIG = require('./../config').PAYMENT;
 */
 
 module.exports = function(app) {
+
+	app.use(bodyParser.json());
+	app.use(bodyParser.urlencoded({extended: false}));
 
 	// 登陆
 	app.get('/sign', function(req, res) {
@@ -175,6 +179,17 @@ module.exports = function(app) {
 		else {
 			res.send({status: 1001});
 		}
+	});
+
+	// 支付回调
+	app.post('/payCallback', function(req, res) {
+
+		var orderId = req.body.order_id;
+		var price = req.body.price;
+		var realPrice = req.body.real_price;
+		var signature = req.body.signature;
+		console.log(req.body);
+		res.send({status: 1000});
 	});
 
 	// 验证用户名是否已存在
