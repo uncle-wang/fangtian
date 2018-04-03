@@ -198,8 +198,7 @@ module.exports = function(app) {
 			realPrice = Number(realPrice);
 			// 实际支付允许0.02元的误差
 			if (price - realPrice <= 0.02) {
-				price = Math.min(price, realPrice);
-				api.payRecharge(orderId, parseInt(price * 6000));
+				api.payRecharge(orderId);
 			}
 		}
 		res.send({status: 1000});

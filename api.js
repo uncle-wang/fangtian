@@ -117,7 +117,7 @@ var updatePassword = function(userId, newpassword, callback) {
 // 创建充值订单
 var createRecharge = function(userid, quota, callback) {
 
-	sql.query('insert into recharge(user,quota,create_time) values(' + userid + ',' + quota + ',' + Date.now() + ')', function(err, result) {
+	sql.query('insert into recharge(user,quota,create_time) values(' + userid + ',' + (quota * 6000) + ',' + Date.now() + ')', function(err, result) {
 		if (err) {
 			callback({status: 0, error: err});
 			return;
