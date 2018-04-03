@@ -15,7 +15,7 @@ require('./schedules');
 
 app.use(function(req, res) {
 
-	res.send({code: 2000, desc: 'api not found'});
+	res.status(404).send('api not found');
 });
 
 app.listen(6932, function() {

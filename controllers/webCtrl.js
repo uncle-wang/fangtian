@@ -1,5 +1,8 @@
+var crypto = require('crypto');
 // 加载api模块
 var api = require('./../api');
+// 加载配置文件
+var PAYCONFIG = require('./../config').PAYMENT;
 
 /*
 	状态码
@@ -15,6 +18,8 @@ var api = require('./../api');
 	3001-订单不存在
 	3002-订单已失效
 	3003-订单发起人与响应人冲突
+	4001-游戏不存在
+	4002-游戏已封盘
 */
 
 module.exports = function(app) {
@@ -34,7 +39,6 @@ module.exports = function(app) {
 						var userInfo = resultMap.userInfo;
 						req.session.userid = userInfo.id;
 						req.session.username = userInfo.name;
-						req.session.balance = userInfo.balance;
 						res.send({status: 1000});
 						api.updateLastLoginTime(userInfo.id);
 					}
@@ -56,7 +60,6 @@ module.exports = function(app) {
 		if (userId) {
 			delete req.session.userid;
 			delete req.session.username;
-			delete req.session.balance;
 			res.send({status: 1000});
 		}
 		else {
@@ -123,6 +126,57 @@ module.exports = function(app) {
 		}
 	});
 
+	// 充值
+	app.get('/recharge', function(req, res) {
+
+		var userId = req.session.userid;
+		var price = parseInt(req.query.price);
+		if (userId) {
+			api.recharge(userId, price, function(resultMap) {
+				res.send(resultMap);
+			});
+		}
+		else {
+			res.send({status: 1001});
+		}
+	});
+
+	// 计算支付签名
+	app.get('/getSignature', function(req, res) {
+
+		var userId = req.session.userid;
+		if (userId) {
+			var apiKey = PAYCONFIG.APIKEY;
+			var apiUser = PAYCONFIG.APIUSER;
+			var type = PAYCONFIG.TYPE;
+			var price = req.query.price;
+			var redirect = req.query.redirect;
+			var quota = parseInt(price);
+			api.createRecharge(userId, quota, function(resultMap) {
+				if (resultMap.status === 1) {
+					var orderId = resultMap.orderId;
+					var orderInfo = 'fangtian';
+					var md5 = crypto.createHash('md5');
+					var str = apiKey + apiUser + orderId + orderInfo + price + redirect + type;
+					console.log(str);
+					md5.update(str);
+					var signature = md5.digest('hex');
+					res.send({status: 1000, payInfo: {
+						order_id: orderId,
+						order_info: orderInfo,
+						signature: signature
+					}});
+				}
+				else {
+					res.send({status: 1003, desc: resultMap.error});
+				}
+			});
+		}
+		else {
+			res.send({status: 1001});
+		}
+	});
+
 	// 验证用户名是否已存在
 	app.get('/checkUserExist', function(req, res) {
 
@@ -142,78 +196,53 @@ module.exports = function(app) {
 		}
 	});
 
-	// 查询待响应订单列表
-	app.get('/getOrderListToBeResponded', function(req, res) {
+	// 查询当期confessed游戏
+	app.get('/getOpenConfessedGame', function(req, res) {
 
-		api.getOrderListToBeResponded(function(err, result) {
-			if (err) {
-				res.send({status: 1003, desc: err});
+		api.getCurrentConfessedGame(function(resultMap) {
+			res.send(resultMap);
+		});
+	});
+
+	// 查询往期confessed游戏
+	app.get('/getConfessedHistory', function(req, res) {
+
+		api.getConfessedGameHistory(function(resultMap) {
+			res.send(resultMap);
+		});
+	});
+
+	// confessed下单
+	app.get('/buyConfessed', function(req, res) {
+
+		var userId = req.session.userid;
+		var quota = parseInt(req.query.quota), gameId = req.query.gameId, type = req.query.type;
+		// 未登录
+		if (!userId) {
+			res.send({status: 1001});
+			return;
+		}
+		api.createConfessedOrder(type, quota, userId, gameId, function(resultMap) {
+			var status = resultMap.status;
+			if (status === 1) {
+				res.send({status: 1000});
+			}
+			else if (status === 2) {
+				res.send({status: 4001});
+			}
+			else if (status === 3) {
+				res.send({status: 4002});
+			}
+			else if (status === 4) {
+				res.send({status: 2002});
+			}
+			else if (status == 5) {
+				res.send({status: 2003});
 			}
 			else {
-				res.send({status: 1000, orderList: result});
+				res.send({status: 1003, desc: resultMap.error});
 			}
 		});
 	});
 
-	// 查询用户订单列表
-	app.get('/getOrderListByUser', function(req, res) {
-
-		var userId = req.session.userid;
-		var username = req.session.username;
-		if (userId && username) {
-			api.getOrderListByUser(username, function(err, result) {
-				if (err) {
-					res.send({status: 1003, desc: err});
-				}
-				else {
-					res.send({status: 1000, orderList: result});
-				}
-			});
-		}
-		else {
-			res.send({status: 1001});
-		}
-	});
-
-	// 响应订单
-	app.get('/responseOrder', function(req, res) {
-
-		var userId = req.session.userid;
-		var username = req.session.username;
-		if (userId && username) {
-			var orderId = req.query.orderid;
-			if (orderId) {
-				api.responseOrder(userId, username, orderId, function(resultMap) {
-					res.send(resultMap);
-				});
-			}
-			else {
-				res.send({status: 1002, desc: 'orderid is required'});
-			}
-		}
-		else {
-			res.send({status: 1001});
-		}
-	});
-
-	// 创建订单
-	app.get('/createOrder', function(req, res) {
-
-		var userId = req.session.userid;
-		if (userId) {
-			var quota = parseInt(req.query.quota);
-			var type = parseInt(req.query.type);
-			if (quota >= 0 && (type === 0 || type === 1)) {
-				api.createOrder(userId, quota, type, function(resultMap) {
-					res.send(resultMap);
-				});
-			}
-			else {
-				res.send({status: 1002, desc: 'quota and type is required'});
-			}
-		}
-		else {
-			res.send({status: 1001});
-		}
-	});
 };

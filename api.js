@@ -1,7 +1,7 @@
 // md5
 var md5 = require('md5');
 // 加载sql模块
-var sql = require('./../sql');
+var sql = require('./sql');
 
 var _release = function(connection) {
 
@@ -114,6 +114,59 @@ var updatePassword = function(userId, newpassword, callback) {
 	});
 };
 
+// 创建充值订单
+var createRecharge = function(userid, quota, callback) {
+
+	sql.query('insert into recharge(user,quota,create_time) values(' + userid + ',' + quota + ',' + Date.now() + ')', function(err, result) {
+		if (err) {
+			callback({status: 0, error: err});
+			return;
+		}
+		callback({status: 1, orderId: result.insertId});
+	});
+
+/*	sql.trans(function(transerr, conn) {
+
+		if (transerr) {
+			callback({status: 1003, desc: transerr});
+			return;
+		}
+		conn.query('select balance from users where id=' + userid + ' for update', function(usrerr, result) {
+			if (usrerr) {
+				_release(conn);
+				callback({status: 1003, desc: usrerr});
+				return;
+			}
+			var userInfo = result[0];
+			if (userInfo) {
+				var newBalance = userInfo.balance + quota;
+				conn.query('update users set balance=' + newBalance + ' where id=' + userid, function(seterr, result) {
+					if (seterr) {
+						_release(conn);
+						callback({status: 1003, desc: seterr});
+						return;
+					}
+					conn.commit(function(comerr) {
+						if (comerr) {
+							_release(conn);
+							callback({status: 1003, desc: comerr});
+							return;
+						}
+						conn.release();
+						callback({status: 1000});
+						return;
+					});
+				});
+			}
+			else {
+				_release(conn);
+				callback({status: 2002});
+				return;
+			}
+		});
+	});
+*/};
+
 // 验证用户名是否已存在
 var checkUserExist = function(username, callback) {
 
@@ -161,18 +214,23 @@ var getConfessedGameHistory = function(callback) {
 	});
 };
 
+// 查询历史订单
+var getOrderHistoryByUser = function(userid) {
+
+	sql.query('select * from confessed_orders where id=');
+};
+
 // 公开局下单 0-数据库错误,1-成功,2-游戏id不存在,3-已封盘,4-余额不足或账号异常
 var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 
 	sql.trans(function(transerr, conn) {
 
 		if (transerr) {
-			_release(conn);
 			callback({status: 0, error: transerr});
 			return;
 		}
 		// 查询当期游戏状态
-		conn.query('select * from confessed_games where id=' + gameid + ' for update', function(gameerr, gameResult) {
+		conn.query('select * from confessed_games where id="' + gameid + '" for update', function(gameerr, gameResult) {
 
 			if (gameerr) {
 				_release(conn);
@@ -199,14 +257,20 @@ var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 					callback({status: 0, error: usererr});
 					return;
 				}
-				// 余额不足
-				if (userResult.length <= 0 || userResult[0].balance < quota) {
+				// 账号不存在
+				if (userResult.length <= 0) {
 					_release(conn);
 					callback({status: 4});
 					return;
 				}
-				// 扣款
+				// 余额不足
 				var newBalance = userResult[0].balance - quota;
+				if (newBalance < 0) {
+					_release(conn);
+					callback({status: 5});
+					return;
+				}
+				// 扣款
 				conn.query('update users set balance=' + newBalance + ' where id=' + userid, function(balerr, balResult) {
 					if (balerr) {
 						_release(conn);
@@ -214,7 +278,7 @@ var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 						return;
 					}
 					// 创建订单
-					conn.query('insert into confessed_orders(type,game_id,amount,create_time) values(' + type + ',"' + gameid + '",' + quota + ',' + Date.now() + ')', function(ordererr, orderResult) {
+					conn.query('insert into confessed_orders(type,user,game_id,amount,create_time) values(' + type + ',' + userid + ',"' + gameid + '",' + quota + ',' + Date.now() + ')', function(ordererr, orderResult) {
 						if (ordererr) {
 							_release(conn);
 							callback({status: 0, error: ordererr});
@@ -222,7 +286,7 @@ var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 						}
 						// 更新本场数据
 						var columnName, value;
-						if (type === 0) {
+						if (type === '0') {
 							columnName = 'even_amount';
 						}
 						else {
@@ -260,8 +324,10 @@ module.exports = {
 	getUserInfo: getUserInfo,
 	register: register,
 	updatePassword: updatePassword,
+	createRecharge: createRecharge,
 	checkUserExist: checkUserExist,
 	getCurrentConfessedGame: getCurrentConfessedGame,
 	getConfessedGameHistory: getConfessedGameHistory,
+	getOrderHistoryByUser: getOrderHistoryByUser,
 	createConfessedOrder: createConfessedOrder
 };
