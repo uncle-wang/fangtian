@@ -130,21 +130,6 @@ module.exports = function(app) {
 		}
 	});
 
-	// 充值
-	app.get('/recharge', function(req, res) {
-
-		var userId = req.session.userid;
-		var price = parseInt(req.query.price);
-		if (userId) {
-			api.recharge(userId, price, function(resultMap) {
-				res.send(resultMap);
-			});
-		}
-		else {
-			res.send({status: 1001});
-		}
-	});
-
 	// 计算支付签名
 	app.get('/getSignature', function(req, res) {
 
@@ -234,6 +219,20 @@ module.exports = function(app) {
 	app.get('/getConfessedHistory', function(req, res) {
 
 		api.getConfessedGameHistory(function(resultMap) {
+			res.send(resultMap);
+		});
+	});
+
+	// 获取历史订单
+	app.get('/getOrderHistory', function(req, res) {
+
+		var userId = req.session.userid;
+		// 未登录
+		if (!userId) {
+			res.send({status: 1001});
+			return;
+		}
+		api.getOrderHistoryByUser(userId, function(resultMap) {
 			res.send(resultMap);
 		});
 	});

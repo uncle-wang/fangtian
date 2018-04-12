@@ -245,9 +245,15 @@ var getConfessedGameHistory = function(callback) {
 };
 
 // 查询历史订单
-var getOrderHistoryByUser = function(userid) {
+var getOrderHistoryByUser = function(userid, callback) {
 
-	sql.query('select * from confessed_orders where id=');
+	sql.query('select * from confessed_orders where user=' + userid, function(err, result) {
+		if (err) {
+			callback({status: 1003, desc: err});
+			return;
+		}
+		callback({status: 1000, orderList: result});
+	});
 };
 
 // 公开局下单 0-数据库错误,1-成功,2-游戏id不存在,3-已封盘,4-余额不足或账号异常
@@ -346,6 +352,9 @@ var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 		});
 	});
 };
+
+// 查询历史订单
+var getOrderHistory = function(callback) {};
 
 module.exports = {
 
