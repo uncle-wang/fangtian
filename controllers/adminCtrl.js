@@ -25,6 +25,19 @@ module.exports = function(app) {
 		}
 	});
 
+	// 管理员注销
+	app.get('/slogout', function(req, res) {
+
+		var sadmin = req.session.sadmin;
+		if (sadmin === true) {
+			delete req.session.sadmin;
+			res.send({status: 1000});
+		}
+		else {
+			res.send({status: 1001});
+		}
+	});
+
 	// 管理员api
 	app.use('/admin', function(req, res, next) {
 
