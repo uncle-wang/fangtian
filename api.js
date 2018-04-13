@@ -247,7 +247,7 @@ var getConfessedGameHistory = function(callback) {
 // 查询历史订单
 var getOrderHistoryByUser = function(userid, callback) {
 
-	sql.query('select * from confessed_orders where user=' + userid, function(err, result) {
+	sql.query('select * from confessed_orders where user=' + userid + ' order by create_time desc', function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
