@@ -1,7 +1,7 @@
 // md5
 var md5 = require('md5');
 // 加载sql模块
-var sql = require('./sql');
+var sql = require('./../services/sql');
 
 var _release = function(connection) {
 

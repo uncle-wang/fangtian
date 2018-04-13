@@ -18,6 +18,10 @@
 
 module.exports = function(app) {
 
+	// 用户端
 	require('./webCtrl')(app);
+	// 管理员端
 	require('./adminCtrl')(app);
+	// 定时任务
+	require('./schedules');
 };

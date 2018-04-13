@@ -1,5 +1,5 @@
 // 加载sql模块
-var sql = require('./../sql');
+var sql = require('./../services/sql');
 
 // 个位数补0
 var _zeroFixed = function(num) {

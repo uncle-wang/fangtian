@@ -12,10 +12,8 @@ app.use(session({
 	saveUninitialized: true
 }));
 
-// 加载controller
+// 加载控制器
 require('./controllers')(app);
-// 加载schedule任务
-require('./schedules');
 
 app.use(function(req, res) {
 

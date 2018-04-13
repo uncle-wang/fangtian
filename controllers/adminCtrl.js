@@ -1,6 +1,10 @@
 var crypto = require('crypto');
 // 加载配置文件
 var CONFIG = require('./../config');
+// 加载api
+var adminApi = require('./../apis/adminApi');
+// 非管理员api中的一部分可以复用
+var webApi = require('./../apis/webApi');
 
 module.exports = function(app) {
 

@@ -1,6 +1,6 @@
 var crypto = require('crypto');
 // 加载api模块
-var api = require('./../api');
+var api = require('./../apis/webApi');
 // 加载配置文件
 var PAYCONFIG = require('./../config').PAYMENT;
 

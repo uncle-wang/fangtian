@@ -1,7 +1,7 @@
 // mysql
 var mysql = require('mysql');
 // config
-var options = require('./config').MYSQL;
+var options = require('./../config').MYSQL;
 
 // 连接池
 var pool = mysql.createPool(options);
