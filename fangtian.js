@@ -1,9 +1,10 @@
 var express = require('express');
 var session = require('express-session');
 var app = express();
+var secret = require('./config').SESSIONSECRET;
 
 app.use(session({
-	secret: 'fangtian game',
+	secret: secret,
 	resave: true,
 	saveUninitialized: true
 }));

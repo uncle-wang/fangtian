@@ -1,5 +1,4 @@
 var crypto = require('crypto');
-var bodyParser = require('body-parser');
 // 加载api模块
 var api = require('./../api');
 // 加载配置文件
@@ -24,9 +23,6 @@ var PAYCONFIG = require('./../config').PAYMENT;
 */
 
 module.exports = function(app) {
-
-	app.use(bodyParser.json());
-	app.use(bodyParser.urlencoded({extended: false}));
 
 	// 登陆
 	app.get('/sign', function(req, res) {
