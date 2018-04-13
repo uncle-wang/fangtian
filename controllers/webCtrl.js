@@ -4,24 +4,6 @@ var api = require('./../api');
 // 加载配置文件
 var PAYCONFIG = require('./../config').PAYMENT;
 
-/*
-	状态码
-	1000-成功
-	1001-需要登陆
-	1002-参数错误
-	1003-服务器错误
-	2001-用户已存在(注册)
-	2002-用户不存在
-	2003-用户余额不足
-	2004-用户已登录(登录)
-	2005-用户密码错误
-	3001-订单不存在
-	3002-订单已失效
-	3003-订单发起人与响应人冲突
-	4001-游戏不存在
-	4002-游戏已封盘
-*/
-
 module.exports = function(app) {
 
 	// 登陆
@@ -58,9 +40,14 @@ module.exports = function(app) {
 
 		var userId = req.session.userid;
 		if (userId) {
-			delete req.session.userid;
-			delete req.session.username;
-			res.send({status: 1000});
+			req.session.destroy(function(err) {
+				if (err) {
+					res.send({status: 1003, desc: err});
+				}
+				else {
+					res.send({status: 1000});
+				}
+			});
 		}
 		else {
 			res.send({status: 1001});

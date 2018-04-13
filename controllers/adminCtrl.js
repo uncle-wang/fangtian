@@ -25,22 +25,10 @@ module.exports = function(app) {
 		}
 	});
 
-	// 管理员注销
-	app.get('/slogout', function(req, res) {
-
-		var sadmin = req.session.sadmin;
-		if (sadmin === true) {
-			delete req.session.sadmin;
-			res.send({status: 1000});
-		}
-		else {
-			res.send({status: 1001});
-		}
-	});
-
-	// 管理员api
+	// 统一中间件，用于验证登录信息
 	app.use('/admin', function(req, res, next) {
 
+		// 统一验证session，
 		if (req.session.sadmin === true) {
 			next();
 		}
@@ -48,10 +36,25 @@ module.exports = function(app) {
 			res.send({status: 1001});
 		}
 	});
+
+	// 注销
+	app.get('/admin/logout', function(req, res) {
+
+		req.session.destroy(function(err) {
+			if (err) {
+				res.send({status: 1003, desc: err});
+			}
+			else {
+				res.send({status: 1000});
+			}
+		});
+	});
+
 	app.get('/admin/hehe', function(req, res) {
 
 		res.send('/admin/hehe');
 	});
+
 	app.get('/admin/ff', function(req, res) {
 
 		res.send('/admin/ff');
