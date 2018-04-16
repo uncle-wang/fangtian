@@ -54,14 +54,14 @@ module.exports = function(app) {
 		}
 	});
 
-	// 获取登录信息
-	app.get('/getLoginStatus', function(req, res) {
+	// 获取用户信息
+	app.get('/getUserInfo', function(req, res) {
 
 		var userId = req.session.userid;
 		if (userId) {
 			api.getUserInfo(userId, function(resultMap) {
 				if (resultMap.status === 1) {
-					res.send({status: 1000, signed: true, info: resultMap.info});
+					res.send({status: 1000, userInfo: resultMap.info});
 				}
 				else {
 					if (resultMap.status === 0) {
@@ -74,7 +74,7 @@ module.exports = function(app) {
 			});
 		}
 		else {
-			res.send({status: 1000, signed: false});
+			res.send({status: 1001});
 		}
 	});
 
@@ -113,8 +113,8 @@ module.exports = function(app) {
 		}
 	});
 
-	// 计算支付签名
-	app.get('/getSignature', function(req, res) {
+	// 创建充值订单并计算支付签名
+	app.get('/createRecharge', function(req, res) {
 
 		var userId = req.session.userid;
 		if (userId) {
@@ -126,8 +126,9 @@ module.exports = function(app) {
 			var quota = parseInt(price);
 			api.createRecharge(userId, quota, function(resultMap) {
 				if (resultMap.status === 1) {
-					var orderId = resultMap.orderId;
-					var orderInfo = PAYCONFIG.CALLBACKKEY;
+					var payenv = PAYCONFIG.ENVKEY;
+					var orderId = payenv + '_' + resultMap.orderId;
+					var orderInfo = payenv;
 					var md5 = crypto.createHash('md5');
 					var str = apiKey + apiUser + orderId + orderInfo + price + redirect + type;
 					md5.update(str);
@@ -148,9 +149,67 @@ module.exports = function(app) {
 		}
 	});
 
+	// 获取充值历史记录
+	app.get('/getRechargeHistory', function(req, res) {
+
+		var userId = req.session.userid;
+		if (userId) {
+			api.getRechargeHistoryByUser(userId, function(resultMap) {
+				res.send(resultMap);
+			});
+		}
+		else {
+			res.send({status: 1001});
+		}
+	});
+
+	// 对已创建充值订单计算支付签名(支付已创建订单)
+	app.get('/payRecharge', function(req, res) {
+
+		var userId = req.session.userid;
+		if (userId) {
+			var rechargeId = req.query.rechargeId;
+			var redirect = req.query.redirect;
+			api.getRechargeInfo(rechargeId, function(resultMap) {
+				if (resultMap.status === 0) {
+					res.send({status: 1003, desc: resultMap.error});
+				}
+				else if (resultMap.status === 1) {
+					var rechargeInfo = resultMap.rechargeInfo;
+					if (rechargeInfo.user !== userId) {
+						res.send({status: 3001});
+						return;
+					}
+					var payenv = PAYCONFIG.ENVKEY;
+					var apiKey = PAYCONFIG.APIKEY;
+					var apiUser = PAYCONFIG.APIUSER;
+					var orderId = payenv + '_' + rechargeId;
+					var orderInfo = payenv;
+					var price = rechargeInfo.quota.toFixed(2);
+					var type = PAYCONFIG.TYPE;
+					var md5 = crypto.createHash('md5');
+					var str = apiKey + apiUser + orderId + orderInfo + price + redirect + type;
+					md5.update(str);
+					var signature = md5.digest('hex');
+					res.send({status: 1000, rechargeInfo: {
+						signature: signature,
+						order_info: orderInfo
+					}});
+				}
+				else {
+					res.send({status: 3001});
+				}
+			});
+		}
+		else {
+			res.send({status: 1001});
+		}
+	});
+
 	// 支付回调
 	app.post('/payCallback', function(req, res) {
 
+		var payenv = PAYCONFIG.ENVKEY;
 		var apiKey = PAYCONFIG.APIKEY;
 		var orderId = req.body.order_id;
 		var ppzOrderId = req.body.ppz_order_id;
@@ -159,13 +218,16 @@ module.exports = function(app) {
 		var signature = req.body.signature;
 		// 校验
 		var md5 = crypto.createHash('md5');
-		md5.update(apiKey + orderId + PAYCONFIG.CALLBACKKEY + ppzOrderId + price + realPrice);
+		md5.update(apiKey + orderId + payenv + ppzOrderId + price + realPrice);
 		if (signature === md5.digest('hex')) {
 			price = Number(price);
 			realPrice = Number(realPrice);
 			// 实际支付允许0.02元的误差
 			if (price - realPrice <= 0.02) {
-				api.payRecharge(orderId);
+				if (orderId.indexOf(payenv + '_') === 0) {
+					var formatId = orderId.substr(payenv.length + 1);
+					api.payRecharge(formatId);
+				}
 			}
 		}
 		res.send({status: 1000});
@@ -221,7 +283,7 @@ module.exports = function(app) {
 	});
 
 	// confessed下单
-	app.get('/buyConfessed', function(req, res) {
+	app.get('/createOrder', function(req, res) {
 
 		var userId = req.session.userid;
 		var quota = parseInt(req.query.quota), gameId = req.query.gameId, type = req.query.type;

@@ -42,7 +42,7 @@ var updateLastLoginTime = function(userid) {
 // 获取用户信息
 var getUserInfo = function(userId, callback) {
 
-	sql.query('select name,nick,blc_available,blc_frozen,alipay,last_login_time from users where id=' + userId, function(err, result) {
+	sql.query('select name,nick,balance,last_login_time from users where id=' + userId, function(err, result) {
 		if (err) {
 			callback({status: 0, err: err});
 		}
@@ -123,6 +123,34 @@ var createRecharge = function(userid, quota, callback) {
 			return;
 		}
 		callback({status: 1, orderId: result.insertId});
+	});
+};
+
+// 获取充值记录
+var getRechargeHistoryByUser = function(userid, callback) {
+
+	sql.query('select * from recharge where user=' + userid, function(err, result) {
+		if (err) {
+			callback({status: 1003, desc: err});
+			return;
+		}
+		callback({status: 1000, rechargeList: result});
+	});
+};
+
+// 查询充值订单信息
+var getRechargeInfo = function(rechargeId, callback) {
+
+	sql.query('select * from recharge where id=' + rechargeId, function(err, result) {
+		if (err) {
+			callback({status: 0, error: err});
+			return;
+		}
+		if (result.length < 1) {
+			callback({status: 2});
+			return;
+		}
+		callback({status: 1, rechargeInfo: result[0]});
 	});
 };
 
@@ -353,9 +381,6 @@ var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 	});
 };
 
-// 查询历史订单
-var getOrderHistory = function(callback) {};
-
 module.exports = {
 
 	login: login,
@@ -364,6 +389,8 @@ module.exports = {
 	register: register,
 	updatePassword: updatePassword,
 	createRecharge: createRecharge,
+	getRechargeHistoryByUser: getRechargeHistoryByUser,
+	getRechargeInfo: getRechargeInfo,
 	payRecharge: payRecharge,
 	checkUserExist: checkUserExist,
 	getCurrentConfessedGame: getCurrentConfessedGame,
