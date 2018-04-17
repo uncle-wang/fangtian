@@ -441,6 +441,18 @@ var pickup = function(userid, quota, callback) {
 	});
 };
 
+// 获取提现记录
+var getPickupHistoryByUser = function(userid, callback) {
+
+	sql.query('select * from pickup where user=' + userid, function(err, result) {
+		if (err) {
+			callback({status: 1003, desc: err});
+			return;
+		}
+		callback({status: 1000, pickupList: result});
+	});
+};
+
 module.exports = {
 
 	login: login,

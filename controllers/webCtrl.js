@@ -347,4 +347,18 @@ module.exports = function(app) {
 		}
 	});
 
+	// 获取提现历史记录
+	app.get('/getPickupHistory', function(req, res) {
+
+		var userId = req.session.userid;
+		if (userId) {
+			api.getPickupHistoryByUser(userId, function(resultMap) {
+				res.send(resultMap);
+			});
+		}
+		else {
+			res.send({status: 1001});
+		}
+	});
+
 };
