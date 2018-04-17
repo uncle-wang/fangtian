@@ -432,7 +432,7 @@ var pickup = function(userid, quota, callback) {
 							return;
 						}
 						conn.release();
-						callback({status: 1000});
+						callback({status: 1000, newBalance: newBalance});
 						return;
 					});
 				});
