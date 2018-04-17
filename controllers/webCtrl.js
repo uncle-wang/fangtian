@@ -315,4 +315,36 @@ module.exports = function(app) {
 		});
 	});
 
+	// 提现
+	app.get('/pickup', function(req, res) {
+
+		var userId = req.session.userid;
+		if (userId) {
+			var reg = /^[1-9]\d*$/;
+			var quota = req.query.quota;
+			if (quota) {
+				if (reg.test(quota)) {
+					quota = parseInt(quota);
+					if (quota >= 100) {
+						api.pickup(userId, quota, function(resultMap) {
+							res.send(resultMap);
+						});
+					}
+					else {
+						res.send({status: 1002, desc: 'quota smaller than 100'});
+					}
+				}
+				else {
+					res.send({status: 1002, desc: 'quota invalid'});
+				}
+			}
+			else {
+				res.send({status: 1002, desc: 'quota required'});
+			}
+		}
+		else {
+			res.send({status: 1001});
+		}
+	});
+
 };

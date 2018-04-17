@@ -381,6 +381,66 @@ var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 	});
 };
 
+// 提现
+var pickup = function(userid, quota, callback) {
+
+	sql.trans(function(transerr, conn) {
+		if (transerr) {
+			callback({status: 1003, desc: transerr});
+			return;
+		}
+		conn.query('select balance from users where id=' + userid + ' for update', function(errA, resultA) {
+			if (errA) {
+				_release(conn);
+				callback({status: 1003, desc: errA});
+				return;
+			}
+			// 用户不存在
+			if (resultA.length <= 0) {
+				_release(conn);
+				callback({status: 2002});
+				return;
+			}
+			var balance = resultA[0].balance;
+			// 手续费
+			var fees = Math.ceil(quota * 5 / 100);
+			var newBalance = balance - quota - fees;
+			// 余额不足
+			if (newBalance < 0) {
+				_release(conn);
+				callback({status: 2003});
+				return;
+			}
+			// 扣款
+			conn.query('update users set balance=' + newBalance + ' where id=' + userid, function(errB, resultB) {
+				if (errB) {
+					_release(conn);
+					callback({status: 1003, desc: errB});
+					return;
+				}
+				// 创建提现订单
+				conn.query('insert into pickup(user,quota,fees,create_time) values(' + userid + ',' + quota + ',' + fees + ',' + Date.now() + ')', function(errC, resultC) {
+					if (errC) {
+						_release(conn);
+						callback({status: 1003, desc: errC});
+						return;
+					}
+					conn.commit(function(comerr) {
+						if (comerr) {
+							_release(conn);
+							callback({status: 1003, desc: comerr});
+							return;
+						}
+						conn.release();
+						callback({status: 1000});
+						return;
+					});
+				});
+			});
+		});
+	});
+};
+
 module.exports = {
 
 	login: login,
@@ -396,5 +456,6 @@ module.exports = {
 	getCurrentConfessedGame: getCurrentConfessedGame,
 	getConfessedGameHistory: getConfessedGameHistory,
 	getOrderHistoryByUser: getOrderHistoryByUser,
-	createConfessedOrder: createConfessedOrder
+	createConfessedOrder: createConfessedOrder,
+	pickup: pickup
 };
