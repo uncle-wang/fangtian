@@ -129,7 +129,7 @@ var createRecharge = function(userid, quota, callback) {
 // 获取充值记录
 var getRechargeHistoryByUser = function(userid, callback) {
 
-	sql.query('select * from recharge where user=' + userid, function(err, result) {
+	sql.query('select * from recharge where user=' + userid + ' order by create_time desc', function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
@@ -444,7 +444,7 @@ var pickup = function(userid, quota, callback) {
 // 获取提现记录
 var getPickupHistoryByUser = function(userid, callback) {
 
-	sql.query('select * from pickup where user=' + userid, function(err, result) {
+	sql.query('select * from pickup where user=' + userid + ' order by create_time desc', function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
@@ -469,5 +469,6 @@ module.exports = {
 	getConfessedGameHistory: getConfessedGameHistory,
 	getOrderHistoryByUser: getOrderHistoryByUser,
 	createConfessedOrder: createConfessedOrder,
-	pickup: pickup
+	pickup: pickup,
+	getPickupHistoryByUser: getPickupHistoryByUser
 };
