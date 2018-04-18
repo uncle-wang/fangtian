@@ -1,4 +1,5 @@
-var crypto = require('crypto');
+// md5
+var md5 = require('md5');
 // 加载api模块
 var api = require('./../apis/webApi');
 // 加载配置文件
@@ -100,12 +101,15 @@ module.exports = function(app) {
 
 		var userId = req.session.userid;
 		if (userId) {
-			var password = req.query.password;
-			if (password) {
-				api.updatePassword(userId, password);
+			var oldpassword = req.query.oldpassword;
+			var newpassword = req.query.newpassword;
+			if (oldpassword && newpassword) {
+				api.updatePassword(userId, oldpassword, newpassword, function(resultMap) {
+					res.send(resultMap);
+				});
 			}
 			else {
-				res.send({status: 1002, desc: 'password required'});
+				res.send({status: 1002, desc: 'oldpassword and newpassword required'});
 			}
 		}
 		else {
@@ -129,10 +133,8 @@ module.exports = function(app) {
 					var payenv = PAYCONFIG.ENVKEY;
 					var orderId = payenv + '_' + resultMap.orderId;
 					var orderInfo = payenv;
-					var md5 = crypto.createHash('md5');
 					var str = apiKey + apiUser + orderId + orderInfo + price + redirect + type;
-					md5.update(str);
-					var signature = md5.digest('hex');
+					var signature = md5(str);
 					res.send({status: 1000, payInfo: {
 						order_id: orderId,
 						order_info: orderInfo,
@@ -187,10 +189,8 @@ module.exports = function(app) {
 					var orderInfo = payenv;
 					var price = rechargeInfo.quota.toFixed(2);
 					var type = PAYCONFIG.TYPE;
-					var md5 = crypto.createHash('md5');
 					var str = apiKey + apiUser + orderId + orderInfo + price + redirect + type;
-					md5.update(str);
-					var signature = md5.digest('hex');
+					var signature = md5(str);
 					res.send({status: 1000, rechargeInfo: {
 						signature: signature,
 						order_info: orderInfo
@@ -217,9 +217,7 @@ module.exports = function(app) {
 		var realPrice = req.body.real_price;
 		var signature = req.body.signature;
 		// 校验
-		var md5 = crypto.createHash('md5');
-		md5.update(apiKey + orderId + payenv + ppzOrderId + price + realPrice);
-		if (signature === md5.digest('hex')) {
+		if (signature === md5(apiKey + orderId + payenv + ppzOrderId + price + realPrice)) {
 			price = Number(price);
 			realPrice = Number(realPrice);
 			// 实际支付允许0.02元的误差
