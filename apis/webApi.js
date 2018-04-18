@@ -98,15 +98,27 @@ var register = function(username, password, nickname, callback) {
 };
 
 // 修改密码
-var updatePassword = function(userId, newpassword, callback) {
+var updatePassword = function(userId, oldpassword, newpassword, callback) {
 
-	sql.query('update users set password="' + md5(newpassword) + '" where id="' + userId + '"', function(err, result) {
-		if (err) {
-			callback({status: 1003, desc: err});
+	sql.query('select password from users where id=' + userId, function(errA, resultA) {
+		if (errA) {
+			callback({status: 1003, desc: errA});
 			return;
 		}
-		if (result.effectRows >= 1) {
-			callback({status: 1000});
+		var userInfo = resultA[0];
+		if (userInfo) {
+			var password = userInfo.password;
+			if (md5(oldpassword) !== password) {
+				callback({status: 2005});
+				return;
+			}
+			sql.query('update users set password="' + md5(newpassword) + '" where id="' + userId + '"', function(errB, resultB) {
+				if (errB) {
+					callback({status: 1003, desc: errB});
+					return;
+				}
+				callback({status: 1000});
+			});
 		}
 		else {
 			callback({status: 2002});

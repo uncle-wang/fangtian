@@ -105,6 +105,9 @@ module.exports = function(app) {
 			var newpassword = req.query.newpassword;
 			if (oldpassword && newpassword) {
 				api.updatePassword(userId, oldpassword, newpassword, function(resultMap) {
+					if (resultMap.status === 1000) {
+						req.session.destroy();
+					}
 					res.send(resultMap);
 				});
 			}
