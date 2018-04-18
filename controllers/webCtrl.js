@@ -329,18 +329,11 @@ module.exports = function(app) {
 						api.pickup(userId, quota, function(resultMap) {
 							res.send(resultMap);
 						});
-					}
-					else {
-						res.send({status: 1002, desc: 'quota smaller than 100'});
+						return;
 					}
 				}
-				else {
-					res.send({status: 1002, desc: 'quota invalid'});
-				}
 			}
-			else {
-				res.send({status: 1002, desc: 'quota required'});
-			}
+			res.send({status: 1002, desc: 'quota invalid'});
 		}
 		else {
 			res.send({status: 1001});
