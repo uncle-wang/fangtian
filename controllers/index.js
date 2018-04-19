@@ -13,7 +13,8 @@
 	3002-订单已失效
 	3003-订单发起人与响应人冲突
 	4001-游戏不存在
-	4002-游戏已封盘
+	4002-游戏已不再接受下单
+	4003-游戏已存在
 */
 
 module.exports = function(app) {
@@ -22,6 +23,4 @@ module.exports = function(app) {
 	require('./webCtrl')(app);
 	// 管理员端
 	require('./adminCtrl')(app);
-	// 定时任务
-	require('./schedules');
 };

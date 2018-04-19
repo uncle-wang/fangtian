@@ -1,4 +1,7 @@
-var crypto = require('crypto');
+// md5计算
+var md5 = require('md5');
+// 定时任务
+var schedule = require('node-schedule');
 // 加载配置文件
 var CONFIG = require('./../config');
 // 加载api
@@ -13,9 +16,7 @@ module.exports = function(app) {
 
 		var password = req.body.password;
 		if (password) {
-			var md5 = crypto.createHash('md5');
-			md5.update(password);
-			var md5Password = md5.digest('hex');
+			var md5Password = md5(password);
 			if (md5Password === CONFIG.SPASSWORD) {
 				req.session.sadmin = true;
 				res.send({status: 1000});
@@ -54,13 +55,39 @@ module.exports = function(app) {
 		});
 	});
 
-	app.get('/admin/hehe', function(req, res) {
+	// 创建游戏局
+	app.get('/admin/createGame', function(req, res) {
 
-		res.send('/admin/hehe');
+		var gameId = req.query.id;
+		var createTime = Date.now();
+		var disableTime = req.query.disable_time;
+		var closeTime = req.query.close_time;
+		adminApi.createGame(gameId, createTime, disableTime, closeTime, function(resultMap) {
+			if (resultMap.status === 1000) {
+				schedule.scheduleJob(new Date(disableTime), function() {
+					adminApi.disableGame(gameId);
+				});
+			}
+			res.send(resultMap);
+		});
 	});
 
-	app.get('/admin/ff', function(req, res) {
+	// 封盘
+	app.get('/admin/disableGame', function(req, res) {
 
-		res.send('/admin/ff');
+		var gameId = req.query.id;
+		adminApi.disableGame(gameId, function(resultMap) {
+			res.send(resultMap);
+		});
+	});
+
+	// 更新结果
+	app.get('/admin/updateGameResult', function(req, res) {
+
+		var result = Number(req.query.result);
+		var gameId = req.query.id;
+		adminApi.updateGameResult(gameId, result, function(resultMap) {
+			res.send(resultMap);
+		});
 	});
 };

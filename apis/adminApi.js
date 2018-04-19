@@ -1,76 +1,67 @@
 // 加载sql模块
 var sql = require('./../services/sql');
 
-// 个位数补0
-var _zeroFixed = function(num) {
-
-	if (num < 10) {
-		return '0' + num;
-	}
-	return '' + num;
-};
-
-// 获取当前日期
-var _getCurrentDateStr = function() {
-
-	var dateTime = new Date();
-	var period = '' + dateTime.getFullYear() + _zeroFixed(dateTime.getMonth() + 1) + _zeroFixed(dateTime.getDate());
-	return period;
-};
-
 // 创建游戏局
-var createGame = function(callback) {
+var createGame = function(id, createtime, disabletime, closetime, callback) {
 
-	sql.query('select id from confessed_games where status<>"1"', function(err, result) {
+	sql.query('select id from confessed_games where status<>"1"', function(errA, resultA) {
 
-		if (err) {
-			callback(err);
+		if (errA) {
+			callback({status: 1003, desc: errA});
 			return;
 		}
 		// 存在尚未结束的对局
-		if (result.length > 0) {
-			callback(null, {status: 101});
+		if (resultA.length > 0) {
+			callback({status: 4003});
 			return;
 		}
 
-		var timeStamp = Date.now();
-		var period = _getCurrentDateStr();
-		sql.query('insert into confessed_games(id,create_time) values("' + period + '",' + timeStamp + ')', function(err, result) {
-			if (err) {
-				callback(err);
+		sql.query('insert into confessed_games(id,create_time,disable_time,close_time) values("' + id + '",' + createtime + ',' + disabletime + ',' + closetime + ')', function(errB, resultB) {
+			if (errB) {
+				callback({status: 1003, desc: errB});
 				return;
 			}
-			callback(null, {status: 100});
+			callback({status: 1000});
 		});
 	});
 };
 
 // 封盘
-var disableGame = function(callback) {
+var disableGame = function(id) {
 
-	var period = _getCurrentDateStr();
-	sql.query('select id from confessed_games where status="0" and id="' + period + '"', function(err, result) {
-		if (err) {
-			callback(err);
+	sql.query('select * from confessed_games where id="' + id + '"', function(errA, resultA) {
+		if (errA) {
+			callback({status: 1003, desc: errA});
 			return;
 		}
 		if (result.length <= 0) {
-			callback(null, {status: 101});
+			callback({status: 4001});
 			return;
 		}
-		var id = result[0].id;
-		sql.query('update confessed_games set status="2"', function(err, result) {
-			if (err) {
-				callback(err);
+		var gameInfo = result[0];
+		if (gameInfo.status !== '0') {
+			callback({status: 4002});
+			return;
+		}
+		sql.query('update confessed_games set status="2" where id="' + gameInfo.id + '"', function(errB, resultB) {
+			if (errB) {
+				callback({status: 1003, desc: errB});
 				return;
 			}
-			callback(null, {status: 100});
+			callback({status: 1000});
 		});
 	});
+};
+
+// 更新结果
+var updateGameResult = function(id, result, callback) {
+
+	callback({status: 1000});
 };
 
 module.exports = {
 
 	createGame: createGame,
-	disableGame: disableGame
+	disableGame: disableGame,
+	updateGameResult: updateGameResult
 };
