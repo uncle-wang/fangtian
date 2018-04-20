@@ -60,8 +60,8 @@ module.exports = function(app) {
 
 		var gameId = req.query.id;
 		var createTime = Date.now();
-		var disableTime = req.query.disable_time;
-		var closeTime = req.query.close_time;
+		var disableTime = parseInt(req.query.disable_time);
+		var closeTime = parseInt(req.query.close_time);
 		if (gameId && disableTime && closeTime) {
 			adminApi.createGame(gameId, createTime, disableTime, closeTime, function(resultMap) {
 				if (resultMap.status === 1000) {

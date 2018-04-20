@@ -85,7 +85,7 @@ var register = function(username, password, nickname, callback) {
 				connection.commit(function(commiterr) {
 					if (commiterr) {
 						_release(connection);
-						callback({status: 1003, desc: err});
+						callback({status: 1003, desc: commiterr});
 					}
 					else {
 						connection.release();
