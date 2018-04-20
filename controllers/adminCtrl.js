@@ -62,14 +62,22 @@ module.exports = function(app) {
 		var createTime = Date.now();
 		var disableTime = req.query.disable_time;
 		var closeTime = req.query.close_time;
-		adminApi.createGame(gameId, createTime, disableTime, closeTime, function(resultMap) {
-			if (resultMap.status === 1000) {
-				schedule.scheduleJob(new Date(disableTime), function() {
-					adminApi.disableGame(gameId);
-				});
-			}
-			res.send(resultMap);
-		});
+		if (gameId && disableTime && closeTime) {
+			adminApi.createGame(gameId, createTime, disableTime, closeTime, function(resultMap) {
+				if (resultMap.status === 1000) {
+					schedule.scheduleJob(new Date(disableTime), function() {
+						adminApi.disableGame(gameId, function(resultMap) {
+							console.log('DISABLE_GAME:' + new Date());
+							console.log(resultMap);
+						});
+					});
+				}
+				res.send(resultMap);
+			});
+		}
+		else {
+			res.send({status: 1002});
+		}
 	});
 
 	// 封盘

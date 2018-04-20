@@ -256,15 +256,15 @@ var getCurrentConfessedGame = function(callback) {
 	sql.query('select * from confessed_games where status<>"1"', function(err, result) {
 
 		if (err) {
-			callback({status: 2, error: err});
+			callback({status: 1003, desc: err});
 		}
 		else {
 			if (result.length > 0) {
-				callback({status: 1, result: result[0]});
+				callback({status: 1000, gameInfo: result[0]});
 			}
 			// 查询不到
 			else {
-				callback({status: 0});
+				callback({status: 4001});
 			}
 		}
 	});
@@ -273,13 +273,13 @@ var getCurrentConfessedGame = function(callback) {
 // 获取往期记录
 var getConfessedGameHistory = function(callback) {
 
-	sql.query('select * from confessed_games where status="1"', function(err, result) {
+	sql.query('select * from confessed_games where status="1" order by create_time desc', function(err, result) {
 
 		if (err) {
-			callback({status: 2, error: err});
+			callback({status: 1003, desc: err});
 		}
 		else {
-			callback({status: 1, result: result});
+			callback({status: 1000, gameList: result});
 		}
 	});
 };

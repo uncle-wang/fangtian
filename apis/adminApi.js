@@ -27,18 +27,18 @@ var createGame = function(id, createtime, disabletime, closetime, callback) {
 };
 
 // 封盘
-var disableGame = function(id) {
+var disableGame = function(id, callback) {
 
 	sql.query('select * from confessed_games where id="' + id + '"', function(errA, resultA) {
 		if (errA) {
 			callback({status: 1003, desc: errA});
 			return;
 		}
-		if (result.length <= 0) {
+		if (resultA.length <= 0) {
 			callback({status: 4001});
 			return;
 		}
-		var gameInfo = result[0];
+		var gameInfo = resultA[0];
 		if (gameInfo.status !== '0') {
 			callback({status: 4002});
 			return;
