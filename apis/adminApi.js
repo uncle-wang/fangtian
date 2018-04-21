@@ -176,16 +176,16 @@ var _addUserBalance = function(userid, quota, callback) {
 };
 var updateUserBalance = function(gameid, oddTimes, evenTimes, callback) {
 
-	sql.query('select * from confessed_orders where game_id="' + gameid + '" and status="1"', function(errA, resultA) {
+	sql.query('select * from confessed_orders where game_id="' + gameid + '" and status="1"', function(err, result) {
 
-		if (errB) {
-			callback({status: 1003, desc: errB});
+		if (err) {
+			callback({status: 1003, desc: err});
 			return;
 		}
 
 		// 订单列表
 		var i = 0;
-		var orderList = resultA;
+		var orderList = result;
 		var errList = [];
 
 		// 迭代更新
@@ -193,17 +193,17 @@ var updateUserBalance = function(gameid, oddTimes, evenTimes, callback) {
 
 			if (i < orderList.length) {
 				var orderInfo = orderList[i];
-				var userId = userInfo.id;
+				var userId = orderInfo.user;
 				var orderType = orderInfo.type;
 				var orderQuoat = orderInfo.amount;
 				var orderResult = orderInfo.result;
 				var amount = 0;
 				// 单胜
-				if (orderType === 0 && orderResult === 0) {
+				if (orderType === 1 && orderResult === 1) {
 					amount = orderQuoat * oddTimes;
 				}
 				// 双胜
-				if (orderType === 1 && orderResult === 1) {
+				if (orderType === 0 && orderResult === 0) {
 					amount = orderQuoat * evenTimes;
 				}
 				// 平
@@ -244,5 +244,6 @@ module.exports = {
 
 	createGame: createGame,
 	disableGame: disableGame,
-	updateGameResult: updateGameResult
+	updateGameResult: updateGameResult,
+	updateUserBalance: updateUserBalance
 };

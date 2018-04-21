@@ -92,9 +92,27 @@ module.exports = function(app) {
 	// 更新结果
 	app.get('/admin/updateGameResult', function(req, res) {
 
-		var result = Number(req.query.result);
+		var result = parseInt(req.query.result);
+		var resutlNumber = Number(req.query.result_no);
 		var gameId = req.query.id;
-		adminApi.updateGameResult(gameId, result, function(resultMap) {
+		adminApi.updateGameResult(gameId, result, resutlNumber, function(resultMapA) {
+			if (resultMapA.status === 1000) {
+				adminApi.updateUserBalance(gameId, resultMapA.oddTimes, resultMapA.evenTimes, function(resultMapB) {
+					res.send(resultMapB);
+				});
+			}
+			else {
+				res.send(resultMapA);
+			}
+		});
+	});
+	// 更新余额
+	app.get('/admin/updateUserBalance', function(req, res) {
+
+		var gameId = req.query.id;
+		var oddTimes = req.query.odd_times;
+		var evenTimes = req.query.even_times;
+		adminApi.updateUserBalance(gameId, oddTimes, evenTimes, function(resultMap) {
 			res.send(resultMap);
 		});
 	});
