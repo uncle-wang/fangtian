@@ -59,19 +59,10 @@ module.exports = function(app) {
 	app.get('/admin/createGame', function(req, res) {
 
 		var gameId = req.query.id;
-		var createTime = Date.now();
 		var disableTime = parseInt(req.query.disable_time);
 		var closeTime = parseInt(req.query.close_time);
 		if (gameId && disableTime && closeTime) {
-			adminApi.createGame(gameId, createTime, disableTime, closeTime, function(resultMap) {
-				if (resultMap.status === 1000) {
-					schedule.scheduleJob(new Date(disableTime), function() {
-						adminApi.disableGame(gameId, function(resultMap) {
-							console.log('DISABLE_GAME:' + new Date());
-							console.log(resultMap);
-						});
-					});
-				}
+			adminApi.createGame(gameId, disableTime, closeTime, function(resultMap) {
 				res.send(resultMap);
 			});
 		}
@@ -92,27 +83,18 @@ module.exports = function(app) {
 	// 更新结果
 	app.get('/admin/updateGameResult', function(req, res) {
 
-		var result = parseInt(req.query.result);
 		var resutlNumber = Number(req.query.result_no);
 		var gameId = req.query.id;
-		adminApi.updateGameResult(gameId, result, resutlNumber, function(resultMapA) {
-			if (resultMapA.status === 1000) {
-				adminApi.updateUserBalance(gameId, resultMapA.oddTimes, resultMapA.evenTimes, function(resultMapB) {
-					res.send(resultMapB);
-				});
-			}
-			else {
-				res.send(resultMapA);
-			}
+		adminApi.updateGameResult(gameId, resutlNumber, function(resultMap) {
+			res.send(resultMap);
 		});
 	});
+
 	// 更新余额
 	app.get('/admin/updateUserBalance', function(req, res) {
 
 		var gameId = req.query.id;
-		var oddTimes = req.query.odd_times;
-		var evenTimes = req.query.even_times;
-		adminApi.updateUserBalance(gameId, oddTimes, evenTimes, function(resultMap) {
+		adminApi.updateUserBalance(gameId, function(resultMap) {
 			res.send(resultMap);
 		});
 	});
