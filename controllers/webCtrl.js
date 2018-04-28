@@ -26,7 +26,7 @@ module.exports = function(app) {
 						api.updateLastLoginTime(userInfo.id);
 					}
 					else {
-						res.send({status: 2005, desc: 'username or password wrong'});
+						res.send({status: 2005});
 					}
 				}
 			});
@@ -120,6 +120,38 @@ module.exports = function(app) {
 		}
 	});
 
+	// 查询密保问题
+	app.get('/getProtectionQuestions', function(req, res) {
+
+		var username = req.query.username;
+		if (username) {
+			api.getProtectionQuestions(username, function(resultMap) {
+				res.send(resultMap);
+			});
+		}
+		else {
+			res.send({status: 1002, desc: 'username required'});
+		}
+	});
+
+	// 重置密码
+	app.get('/resetPasswordByProtection', function(req, res) {
+
+		var username = req.query.username;
+		var password = req.query.password;
+		var answA = req.query.answ_a;
+		var answB = req.query.answ_b;
+		var answC = req.query.answ_c;
+		if (username && password && answA && answB && answC) {
+			api.resetPasswordByProtection(username, password, answA, answB, answC, function(resultMap) {
+				res.send(resultMap);
+			});
+		}
+		else {
+			res.send({status: 1002, desc: 'username, password, answ_a, answ_b, answ_c required'});
+		}
+	});
+
 	// 设置密保问题
 	app.get('/setProtection', function(req, res) {
 
@@ -151,7 +183,7 @@ module.exports = function(app) {
 					return;
 				}
 			}
-			api.setProtection(req.query, function(resultMap) {
+			api.setProtection(userId, req.query, function(resultMap) {
 				res.send(resultMap);
 			});
 		}

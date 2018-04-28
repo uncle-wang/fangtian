@@ -126,6 +126,68 @@ var updatePassword = function(userId, oldpassword, newpassword, callback) {
 	});
 };
 
+// 获取密保问题
+var getProtectionQuestions = function(username, callback) {
+
+	sql.query('select ques from users where name="' + username + '"', function(err, result) {
+		if (err) {
+			callback({status: 1003, desc: err});
+			return;
+		}
+		var userInfo = result[0];
+		if (!userInfo) {
+			callback({status: 2002});
+			return;
+		}
+		var ques = userInfo.ques;
+		var quesArr = null;
+		if (ques) {
+			var arr = ques.split(',');
+			quesArr = [];
+			for (var i = 0; i < arr.length; i ++) {
+				var str = arr[i];
+				quesArr.push(decodeURIComponent(str));
+			}
+		}
+		callback({status: 1000, ques: quesArr});
+	});
+};
+
+// 重置密码
+var resetPasswordByProtection = function(username, password, answA, answB, answC, callback) {
+
+	sql.query('select id,answ from users where name="' + username + '"', function(errA, resultA) {
+		if (errA) {
+			callback({status: 1003, desc: errA});
+			return;
+		}
+		var userInfo = resultA[0];
+		if (!userInfo) {
+			callback({status: 2002});
+			return;
+		}
+		var answ = userInfo.answ;
+		if (answ) {
+			if (md5(answA) + ',' + md5(answB) + ',' + md5(answC) === answ) {
+				sql.query('update users set password="' + md5(password) + '" where id=' + userInfo.id, function(errB, resultB) {
+					if (errB) {
+						callback({status: 1003, desc: errB});
+					}
+					else {
+						callback({status: 1000});
+					}
+				});
+			}
+			else {
+				callback({status: 2006});
+			}
+		}
+		else {
+			callback({status: 2007});
+		}
+	});
+};
+
 // 设置密保问题
 var _setProtection = function(userid, ques, answ, callback) {
 
@@ -528,6 +590,8 @@ module.exports = {
 	getUserInfo: getUserInfo,
 	register: register,
 	updatePassword: updatePassword,
+	getProtectionQuestions: getProtectionQuestions,
+	resetPasswordByProtection: resetPasswordByProtection,
 	setProtection: setProtection,
 	createRecharge: createRecharge,
 	getRechargeHistoryByUser: getRechargeHistoryByUser,
