@@ -134,27 +134,39 @@ schedule.scheduleJob('0 30 ' + (7 + tzOffset) + ' * * *', function() {
 	});
 });
 
-// 北京时间每日17:00创建新盘
+// 北京时间每日17:00开盘
 schedule.scheduleJob('0 0 ' + (9 + tzOffset) + ' * * *', function() {
 
-	var d = getBjTime();
-	d.setDate(d.getDate() + 1);
-	if (isWeekend(d)) {
-		console.log(d, '[NEWGAME] weekend');
+	var current = new Date();
+	var bjTime = getBjTime();
+	bjTime.setDate(bjTime.getDate() + 1);
+	if (isWeekend(bjTime)) {
+		console.log(current, '[NEWGAME] weekend');
 		return;
 	}
-	var gameId = d.getFullYear() + _zeroFixed(d.getMonth() + 1) + _zeroFixed(d.getDate());
+	var gameId = bjTime.getFullYear() + _zeroFixed(bjTime.getMonth() + 1) + _zeroFixed(bjTime.getDate());
 	if (holidays.indexOf(gameId) > -1) {
-		console.log(d, '[NEWGAME] holiday');
+		console.log(current, '[NEWGAME] holiday');
 		return;
 	}
-	var disableTime, closeTime;
-	adminApi.createGame(gameId, disableTime, closeTime, function(resultMap) {
+	// 封盘时间
+	var disableTime = getBjTime();
+	disableTime.setDate(disableTime.getDate() + 1);
+	disableTime.setHours(14);
+	disableTime.setMinutes(30);
+	disableTime.setHours(disableTime.getHours() - 8 + tzOffset);
+	// 关闭时间
+	var closeTime = getBjTime();
+	closeTime.setDate(closeTime.getDate() + 1);
+	closeTime.setHours(15);
+	closeTime.setMinutes(30);
+	closeTime.setHours(closeTime.getHours() - 8 + tzOffset);
+	adminApi.createGame(gameId, disableTime.getTime(), closeTime.getTime(), function(resultMap) {
 		if (resultMap.status === 1000) {
-			console.log(d, '[NEWGAME] ok');
+			console.log(current, '[NEWGAME] ok');
 		}
 		else {
-			console.log(d, '[NEWGAME] error', resultMap);
+			console.log(current, '[NEWGAME] error', resultMap);
 		}
 	});
 });
