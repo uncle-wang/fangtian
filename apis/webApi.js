@@ -42,18 +42,28 @@ var updateLastLoginTime = function(userid) {
 // 获取用户信息
 var getUserInfo = function(userId, callback) {
 
-	sql.query('select name,nick,balance,last_login_time from users where id=' + userId, function(err, result) {
+	sql.query('select name,nick,balance,last_login_time,ques,answ from users where id=' + userId, function(err, result) {
 		if (err) {
-			callback({status: 0, err: err});
+			callback({status: 1003, desc: err});
+			return;
+		}
+		var userInfo = result[0];
+		if (!userInfo) {
+			callback({status: 2002});
+			return;
+		}
+		var obj = {};
+		obj.name = userInfo.name;
+		obj.nick = userInfo.nick;
+		obj.balance = userInfo.balance;
+		obj.last_login_time = userInfo.last_login_time;
+		if (userInfo.ques && userInfo.answ) {
+			obj.protection = true;
 		}
 		else {
-			if (result.length >= 1) {
-				callback({status: 1, info: result[0]});
-			}
-			else {
-				callback({status: 2})
-			}
+			obj.protection = false;
 		}
+		callback({status: 1000, userInfo: obj});
 	});
 };
 
@@ -126,10 +136,38 @@ var updatePassword = function(userId, oldpassword, newpassword, callback) {
 	});
 };
 
-// 获取密保问题
-var getProtectionQuestions = function(username, callback) {
+// 获取密保问题(通过用户名)
+var getQuestionsByName = function(username, callback) {
 
 	sql.query('select ques from users where name="' + username + '"', function(err, result) {
+		if (err) {
+			callback({status: 1003, desc: err});
+			return;
+		}
+		var userInfo = result[0];
+		if (!userInfo) {
+			callback({status: 2002});
+			return;
+		}
+		var ques = userInfo.ques;
+		var quesArr = null;
+		if (ques) {
+			var arr = ques.split(',');
+			quesArr = [];
+			for (var i = 0; i < arr.length; i ++) {
+				var str = arr[i];
+				quesArr.push(decodeURIComponent(str));
+			}
+		}
+		callback({status: 1000, ques: quesArr});
+	});
+};
+
+// 获取密保问题(通过userid)
+var getQuestionsById = function(userid, callback) {
+
+
+	sql.query('select ques from users where id=' + userid, function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
@@ -204,7 +242,7 @@ var setProtection = function(userid, params, callback) {
 
 	var newQues = encodeURIComponent(params.new_ques_a) + ',' + encodeURIComponent(params.new_ques_b) + ',' + encodeURIComponent(params.new_ques_c);
 	var newAnsw = md5(params.new_answ_a) + ',' + md5(params.new_answ_b) + ',' + md5(params.new_answ_c);
-	sql.query('select ques,answ from users where id=' + userid, function(err, result) {
+	sql.query('select password,ques,answ from users where id=' + userid, function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
@@ -212,6 +250,10 @@ var setProtection = function(userid, params, callback) {
 		var userInfo = result[0];
 		if (!userInfo) {
 			callback({status: 2002});
+			return;
+		}
+		if (userInfo.password !== md5(password)) {
+			callback({status: 2005});
 			return;
 		}
 		// 首次设置
@@ -590,7 +632,8 @@ module.exports = {
 	getUserInfo: getUserInfo,
 	register: register,
 	updatePassword: updatePassword,
-	getProtectionQuestions: getProtectionQuestions,
+	getQuestionsByName: getQuestionsByName,
+	getQuestionsById: getQuestionsById,
 	resetPasswordByProtection: resetPasswordByProtection,
 	setProtection: setProtection,
 	createRecharge: createRecharge,

@@ -61,17 +61,7 @@ module.exports = function(app) {
 		var userId = req.session.userid;
 		if (userId) {
 			api.getUserInfo(userId, function(resultMap) {
-				if (resultMap.status === 1) {
-					res.send({status: 1000, userInfo: resultMap.info});
-				}
-				else {
-					if (resultMap.status === 0) {
-						res.send({status: 1003, desc: resultMap.err});
-					}
-					else {
-						res.send({status: 2002});
-					}
-				}
+				res.send(resultMap);
 			});
 		}
 		else {
@@ -120,17 +110,31 @@ module.exports = function(app) {
 		}
 	});
 
-	// 查询密保问题
-	app.get('/getProtectionQuestions', function(req, res) {
+	// 查询密保问题(通过用户名)
+	app.get('/getQuestionsByName', function(req, res) {
 
 		var username = req.query.username;
 		if (username) {
-			api.getProtectionQuestions(username, function(resultMap) {
+			api.getQuestionsByName(username, function(resultMap) {
 				res.send(resultMap);
 			});
 		}
 		else {
 			res.send({status: 1002, desc: 'username required'});
+		}
+	});
+
+	// 查询密保问题(当前已登录用户)
+	app.get('/getQuestions', function(req, res) {
+
+		var userId = req.session.userid;
+		if (userId) {
+			api.getQuestionsById(userId, function(resultMap) {
+				res.send(resultMap);
+			});
+		}
+		else {
+			res.send({status: 1001});
 		}
 	});
 
@@ -167,13 +171,14 @@ module.exports = function(app) {
 			var newAnswA = req.query.new_answ_a;
 			var newAnswB = req.query.new_answ_b;
 			var newAnswC = req.query.new_answ_c;
+			var password = req.query.password;
 			// type: 0-首次设置 1-非首次设置
 			if (type !== '1' && type !== '0') {
 				res.send({status: 1002, desc: 'type invalid, only 0 or 1'});
 				return;
 			}
-			if (!newQuesA || !newQuesB || !newQuesC || !newAnswA || !newAnswB || !newAnswC) {
-				res.send({status: 1002, desc: 'all questions and answers required'});
+			if (!newQuesA || !newQuesB || !newQuesC || !newAnswA || !newAnswB || !newAnswC || !password) {
+				res.send({status: 1002, desc: 'password and all questions, answers required'});
 				return;
 			}
 			// 非首次设置需要验证旧答案
