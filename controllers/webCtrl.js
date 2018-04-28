@@ -120,6 +120,46 @@ module.exports = function(app) {
 		}
 	});
 
+	// 设置密保问题
+	app.get('/setProtection', function(req, res) {
+
+		var userId = req.session.userid;
+		if (userId) {
+			var type = req.query.type;
+			var oldAnswA = req.query.old_answ_a;
+			var oldAnswB = req.query.old_answ_b;
+			var oldAnswC = req.query.old_answ_c;
+			var newQuesA = req.query.new_ques_a;
+			var newQuesB = req.query.new_ques_b;
+			var newQuesC = req.query.new_ques_c;
+			var newAnswA = req.query.new_answ_a;
+			var newAnswB = req.query.new_answ_b;
+			var newAnswC = req.query.new_answ_c;
+			// type: 0-首次设置 1-非首次设置
+			if (type !== '1' && type !== '0') {
+				res.send({status: 1002, desc: 'type invalid, only 0 or 1'});
+				return;
+			}
+			if (!newQuesA || !newQuesB || !newQuesC || !newAnswA || !newAnswB || !newAnswC) {
+				res.send({status: 1002, desc: 'all questions and answers required'});
+				return;
+			}
+			// 非首次设置需要验证旧答案
+			if (type === '1') {
+				if (!oldAnswA || !oldAnswB || !oldAnswC) {
+					res.send({status: 1002, desc: 'old_answ_a,old_answ_b and old_answ_c required'});
+					return;
+				}
+			}
+			api.setProtection(req.query, function(resultMap) {
+				res.send(resultMap);
+			});
+		}
+		else {
+			res.send({status: 1001});
+		}
+	});
+
 	// 创建充值订单并计算支付签名
 	app.get('/createRecharge', function(req, res) {
 

@@ -241,9 +241,9 @@ var _updateGameAndOrders = function(id, resultno, callback) {
 	});
 };
 // 更新游戏结果
-var updateGameResult = function(id, result, resultno, callback) {
+var updateGameResult = function(id, resultno, callback) {
 
-	_updateGameAndOrders(id, result, resultno, function(resultMapA) {
+	_updateGameAndOrders(id, resultno, function(resultMapA) {
 		if (resultMapA.status === 1000) {
 			updateUserBalance(id, function(resultMapB) {
 				callback(resultMapB);

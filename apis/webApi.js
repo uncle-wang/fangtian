@@ -126,6 +126,62 @@ var updatePassword = function(userId, oldpassword, newpassword, callback) {
 	});
 };
 
+// 设置密保问题
+var _setProtection = function(userid, ques, answ, callback) {
+
+	sql.query('update users set ques="' + ques + '",answ="' + answ + '" where id=' + userid, function(err, result) {
+		if (err) {
+			callback({status: 1003, desc: err});
+		}
+		else {
+			callback({status: 1000});
+		}
+	});
+};
+var setProtection = function(userid, params, callback) {
+
+	var newQues = encodeURIComponent(params.new_ques_a) + ',' + encodeURIComponent(params.new_ques_b) + ',' + encodeURIComponent(params.new_ques_c);
+	var newAnsw = md5(params.new_answ_a) + ',' + md5(params.new_answ_b) + ',' + md5(params.new_answ_c);
+	sql.query('select ques,answ from users where id=' + userid, function(err, result) {
+		if (err) {
+			callback({status: 1003, desc: err});
+			return;
+		}
+		var userInfo = result[0];
+		if (!userInfo) {
+			callback({status: 2002});
+			return;
+		}
+		// 首次设置
+		if (params.type === '0') {
+			if (userInfo.ques && userInfo.answ) {
+				// 已经设置过密保问题和答案
+				callback({status: 2008});
+			}
+			else {
+				_setProtection(userid, newQues, newAnsw, callback);
+			}
+		}
+		// 非首次设置
+		else {
+			if (userInfo.ques && userInfo.answ) {
+				var oldAnsw = md5(params.old_answ_a) + ',' + md5(params.old_answ_b) + ',' + md5(params.old_answ_c);
+				// 验证原密保答案
+				if (oldAnsw === userInfo.answ) {
+					_setProtection(userid, newQues, newAnsw, callback);
+				}
+				else {
+					callback({status: 2006});
+				}
+			}
+			else {
+				// 尚未设置过密保问题和答案
+				callback({status: 2007});
+			}
+		}
+	});
+};
+
 // 创建充值订单
 var createRecharge = function(userid, quota, callback) {
 
@@ -472,6 +528,7 @@ module.exports = {
 	getUserInfo: getUserInfo,
 	register: register,
 	updatePassword: updatePassword,
+	setProtection: setProtection,
 	createRecharge: createRecharge,
 	getRechargeHistoryByUser: getRechargeHistoryByUser,
 	getRechargeInfo: getRechargeInfo,
