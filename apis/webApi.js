@@ -9,6 +9,42 @@ var _release = function(connection) {
 	connection.release && connection.release();
 };
 
+// 更新密码连续错误次数
+var __setTryTimes = function(userid, time, callback) {
+
+	sql.query('update users set try_times=' + time + ' where id=' + userid, function(err, result) {
+		if (err) {
+			callback({status: 1003, desc: err});
+			return;
+		}
+		callback({status: 1000, time: time});
+	});
+};
+// 密码连续错误次数+1
+var _addTryTimes = function(userid, callback) {
+
+	sql.query('select try_times from users where id=' + userid, function(err, result) {
+		if (err) {
+			callback({status: 1003, desc: err});
+			return;
+		}
+		var userInfo = result[0];
+		if (!userInfo) {
+			callback({status: 2002});
+			return;
+		}
+		var currentTimes = userInfo.try_times;
+		__setTryTimes(userid, currentTimes + 1, function(resultMap) {
+			callback(resultMap);
+		});
+	});
+};
+// 重置密码错误次数
+var _resetTryTimes = function(userid, callback) {
+
+	__setTryTimes(userid, 0, callback);
+};
+
 // 登陆 1-成功 0-用户不存在 2-密码错误
 var login = function(username, password, callback) {
 
@@ -22,11 +58,23 @@ var login = function(username, password, callback) {
 			callback({status: 2002});
 			return;
 		}
-		if (userInfo.password !== md5(password)) {
-			callback({status: 2005});
+		// 密码连续错误5次
+		if (userInfo.try_times >= 5) {
+			callback({status: 2009});
 			return;
 		}
-		sql.query('update users set last_login_time=' + Date.now() + ' where id=' + userInfo.id, function(errB, resultB) {
+		if (userInfo.password !== md5(password)) {
+			_addTryTimes(userInfo.id, function(resultMap) {
+				if (resultMap.status === 1000) {
+					callback({status: 2005, wrongTimes: resultMap.time});
+				}
+				else {
+					callback(resultMap);
+				}
+			});
+			return;
+		}
+		sql.query('update users set last_login_time=' + Date.now() + ',try_times=0 where id=' + userInfo.id, function(errB, resultB) {
 			if (errB) {
 				callback({status: 1003, desc: errB});
 				return;
@@ -395,19 +443,6 @@ var payRecharge = function(rechargeId, callback) {
 	});
 };
 
-// 验证用户名是否已存在
-var checkUserExist = function(username, callback) {
-
-	sql.query('select id from users where name="' + username + '"', function(err, result) {
-		if (err) {
-			callback(err);
-		}
-		else {
-			callback(null, result.length >= 1);
-		}
-	});
-};
-
 // 获取最近一期公开游戏局
 var getLatestConfessedGame = function(callback) {
 
@@ -637,7 +672,6 @@ module.exports = {
 	getRechargeHistoryByUser: getRechargeHistoryByUser,
 	getRechargeInfo: getRechargeInfo,
 	payRecharge: payRecharge,
-	checkUserExist: checkUserExist,
 	getLatestConfessedGame: getLatestConfessedGame,
 	getConfessedGameHistory: getConfessedGameHistory,
 	getOrderHistoryByUser: getOrderHistoryByUser,

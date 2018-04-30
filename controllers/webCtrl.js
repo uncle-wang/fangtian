@@ -316,25 +316,6 @@ module.exports = function(app) {
 		res.send({status: 1000});
 	});
 
-	// 验证用户名是否已存在
-	app.get('/checkUserExist', function(req, res) {
-
-		var username = req.query.username;
-		if (username) {
-			api.userExist(username, function(err, exist) {
-				if (err) {
-					res.send({status: 1003, desc: err});
-				}
-				else {
-					res.send({status: 1000, exist: exist});
-				}
-			});
-		}
-		else {
-			res.send({status: 1002, desc: 'username required'});
-		}
-	});
-
 	// 查询最近一期confessed游戏
 	app.get('/getLatestConfessedGame', function(req, res) {
 
