@@ -462,7 +462,7 @@ var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 	sql.trans(function(transerr, conn) {
 
 		if (transerr) {
-			callback({status: 0, error: transerr});
+			callback({status: 1003, desc: transerr});
 			return;
 		}
 		// 查询当期游戏状态
@@ -470,54 +470,54 @@ var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 
 			if (gameerr) {
 				_release(conn);
-				callback({status: 0, error: gameerr});
+				callback({status: 1003, desc: gameerr});
 				return;
 			}
 			// 期号不存在
 			if (gameResult.length <= 0) {
 				_release(conn);
-				callback({status: 2});
+				callback({status: 4001});
 				return;
 			}
 			// 当期游戏状态不匹配
 			var gameInfo = gameResult[0];
 			if (gameInfo.status !== '0') {
 				_release(conn);
-				callback({status: 3});
+				callback({status: 4002});
 				return;
 			}
 			// 查询用户余额
 			conn.query('select balance from users where id=' + userid + ' for update', function(usererr, userResult) {
 				if (usererr) {
 					_release(conn);
-					callback({status: 0, error: usererr});
+					callback({status: 1003, desc: usererr});
 					return;
 				}
 				// 账号不存在
 				if (userResult.length <= 0) {
 					_release(conn);
-					callback({status: 4});
+					callback({status: 2002});
 					return;
 				}
 				// 余额不足
 				var newBalance = userResult[0].balance - quota;
 				if (newBalance < 0) {
 					_release(conn);
-					callback({status: 5});
+					callback({status: 2003});
 					return;
 				}
 				// 扣款
 				conn.query('update users set balance=' + newBalance + ' where id=' + userid, function(balerr, balResult) {
 					if (balerr) {
 						_release(conn);
-						callback({status: 0, error: balerr});
+						callback({status: 1003, desc: balerr});
 						return;
 					}
 					// 创建订单
 					conn.query('insert into confessed_orders(type,user,game_id,amount,create_time) values(' + type + ',' + userid + ',"' + gameid + '",' + quota + ',' + Date.now() + ')', function(ordererr, orderResult) {
 						if (ordererr) {
 							_release(conn);
-							callback({status: 0, error: ordererr});
+							callback({status: 1003, desc: ordererr});
 							return;
 						}
 						// 更新本场数据
@@ -532,17 +532,17 @@ var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 						conn.query('update confessed_games set ' + columnName + '=' + value + ' where id=' + gameid, function(amounterr, amountResult) {
 							if (amounterr) {
 								_release(conn);
-								callback({status: 0, error: amounterr});
+								callback({status: 1003, desc: amounterr});
 								return;
 							}
 							conn.commit(function(commiterr) {
 								if (commiterr) {
 									_release(conn);
-									callback({status: 0, error: commiterr});
+									callback({status: 1003, desc: commiterr});
 								}
 								else {
 									conn.release();
-									callback({status: 1});
+									callback({status: 1000});
 								}
 							});
 						});

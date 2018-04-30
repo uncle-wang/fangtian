@@ -371,25 +371,7 @@ module.exports = function(app) {
 			return;
 		}
 		api.createConfessedOrder(type, quota, userId, gameId, function(resultMap) {
-			var status = resultMap.status;
-			if (status === 1) {
-				res.send({status: 1000});
-			}
-			else if (status === 2) {
-				res.send({status: 4001});
-			}
-			else if (status === 3) {
-				res.send({status: 4002});
-			}
-			else if (status === 4) {
-				res.send({status: 2002});
-			}
-			else if (status == 5) {
-				res.send({status: 2003});
-			}
-			else {
-				res.send({status: 1003, desc: resultMap.error});
-			}
+			res.send(resultMap);
 		});
 	});
 
