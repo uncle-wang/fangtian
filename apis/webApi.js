@@ -12,31 +12,28 @@ var _release = function(connection) {
 // 登陆 1-成功 0-用户不存在 2-密码错误
 var login = function(username, password, callback) {
 
-	sql.query('select * from users where name="' + username + '"', function(err, results) {
-		if (err) {
-			callback(err);
+	sql.query('select * from users where name="' + username + '"', function(errA, resultA) {
+		if (errA) {
+			callback({status: 1003, desc: errA});
+			return;
 		}
-		else {
-			if (results.length < 1) {
-				callback(null, {status: 0});
-			}
-			else {
-				var result = results[0];
-				if (result.password !== md5(password)) {
-					callback(null, {status: 2});
-				}
-				else {
-					callback(null, {status: 1, userInfo: result});
-				}
-			}
+		var userInfo = resultA[0];
+		if (!userInfo) {
+			callback({status: 2002});
+			return;
 		}
+		if (userInfo.password !== md5(password)) {
+			callback({status: 2005});
+			return;
+		}
+		sql.query('update users set last_login_time=' + Date.now() + ' where id=' + userInfo.id, function(errB, resultB) {
+			if (errB) {
+				callback({status: 1003, desc: errB});
+				return;
+			}
+			callback({status: 1000, userInfo: userInfo});
+		});
 	});
-};
-
-// 更新上次登录时间
-var updateLastLoginTime = function(userid) {
-
-	sql.query('update users set last_login_time=' + Date.now() + ' where id=' + userid);
 };
 
 // 获取用户信息
@@ -629,7 +626,6 @@ var getPickupHistoryByUser = function(userid, callback) {
 module.exports = {
 
 	login: login,
-	updateLastLoginTime: updateLastLoginTime,
 	getUserInfo: getUserInfo,
 	register: register,
 	updatePassword: updatePassword,
