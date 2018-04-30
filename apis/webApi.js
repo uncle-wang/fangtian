@@ -252,12 +252,13 @@ var setProtection = function(userid, params, callback) {
 			callback({status: 2002});
 			return;
 		}
-		if (userInfo.password !== md5(password)) {
-			callback({status: 2005});
-			return;
-		}
 		// 首次设置
 		if (params.type === '0') {
+			// 验证密码
+			if (userInfo.password !== md5(params.password)) {
+				callback({status: 2005});
+				return;
+			}
 			if (userInfo.ques && userInfo.answ) {
 				// 已经设置过密保问题和答案
 				callback({status: 2008});

@@ -2,6 +2,8 @@
 var md5 = require('md5');
 // 加载api模块
 var api = require('./../apis/webApi');
+// 参数格式验证
+var Inspect = require('./../services/inspect');
 // 加载配置文件
 var PAYCONFIG = require('./../config').PAYMENT;
 
@@ -177,14 +179,23 @@ module.exports = function(app) {
 				res.send({status: 1002, desc: 'type invalid, only 0 or 1'});
 				return;
 			}
-			if (!newQuesA || !newQuesB || !newQuesC || !newAnswA || !newAnswB || !newAnswC || !password) {
-				res.send({status: 1002, desc: 'password and all questions, answers required'});
+			var newQuesAndAnsw = new Inspect([newQuesA, newQuesB, newQuesC, newAnswA, newAnswB, newAnswC]);
+			if (!newQuesAndAnsw.lessThan16()) {
+				res.send({status: 1002, desc: 'the length of questions or answers is invalid'});
 				return;
 			}
+			// 首次设置需要验证密码
+			if (type === '0') {
+				if (!password) {
+					res.send({status: 1002, desc: 'password required'});
+					return;
+				}
+			}
 			// 非首次设置需要验证旧答案
-			if (type === '1') {
-				if (!oldAnswA || !oldAnswB || !oldAnswC) {
-					res.send({status: 1002, desc: 'old_answ_a,old_answ_b and old_answ_c required'});
+			else {
+				var oldAnsw = new Inspect([oldAnswA, oldAnswB, oldAnswC]);
+				if (!oldAnsw.lessThan16()) {
+					res.send({status: 1002, desc: 'old_answ_a,old_answ_b or old_answ_c invalid'});
 					return;
 				}
 			}
