@@ -410,10 +410,10 @@ var checkUserExist = function(username, callback) {
 	});
 };
 
-// 获取当期公开游戏局
-var getCurrentConfessedGame = function(callback) {
+// 获取最近一期公开游戏局
+var getLatestConfessedGame = function(callback) {
 
-	sql.query('select * from confessed_games where status<>"1"', function(err, result) {
+	sql.query('select * from confessed_games order by id desc', function(err, result) {
 
 		if (err) {
 			callback({status: 1003, desc: err});
@@ -641,7 +641,7 @@ module.exports = {
 	getRechargeInfo: getRechargeInfo,
 	payRecharge: payRecharge,
 	checkUserExist: checkUserExist,
-	getCurrentConfessedGame: getCurrentConfessedGame,
+	getLatestConfessedGame: getLatestConfessedGame,
 	getConfessedGameHistory: getConfessedGameHistory,
 	getOrderHistoryByUser: getOrderHistoryByUser,
 	createConfessedOrder: createConfessedOrder,

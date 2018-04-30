@@ -330,10 +330,10 @@ module.exports = function(app) {
 		}
 	});
 
-	// 查询当期confessed游戏
-	app.get('/getOpenConfessedGame', function(req, res) {
+	// 查询最近一期confessed游戏
+	app.get('/getLatestConfessedGame', function(req, res) {
 
-		api.getCurrentConfessedGame(function(resultMap) {
+		api.getLatestConfessedGame(function(resultMap) {
 			res.send(resultMap);
 		});
 	});
