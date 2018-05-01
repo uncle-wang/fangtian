@@ -198,7 +198,7 @@ var _updateGameAndOrders = function(id, resultno, callback) {
 			var times, result;
 			if (oddAmount <= 0 || evenAmount <= 0) {
 				result = 2;
-				times = 0.9;
+				times = 1;
 			}
 			else {
 				result = __getParity(resultno);

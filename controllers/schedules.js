@@ -103,7 +103,7 @@ schedule.scheduleJob('0 30 ' + (7 + tzOffset) + ' * * *', function() {
 		return;
 	}
 	fetchResult(function(data) {
-		if (data.date.toString() !== gameId) {
+		if (data.date && data.date.toString() !== gameId) {
 			console.log(d, '[RESULT] date not match', data);
 			return;
 		}
