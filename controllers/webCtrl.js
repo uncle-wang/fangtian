@@ -167,7 +167,6 @@ module.exports = function(app) {
 			var newAnswA = req.query.new_answ_a;
 			var newAnswB = req.query.new_answ_b;
 			var newAnswC = req.query.new_answ_c;
-			var password = req.query.password;
 			// type: 0-首次设置 1-非首次设置
 			if (type !== '1' && type !== '0') {
 				res.send({status: 1002, desc: 'type invalid, only 0 or 1'});
@@ -178,15 +177,8 @@ module.exports = function(app) {
 				res.send({status: 1002, desc: 'the length of questions or answers is invalid'});
 				return;
 			}
-			// 首次设置需要验证密码
-			if (type === '0') {
-				if (!password) {
-					res.send({status: 1002, desc: 'password required'});
-					return;
-				}
-			}
 			// 非首次设置需要验证旧答案
-			else {
+			if (type === '1') {
 				var oldAnsw = new Inspect([oldAnswA, oldAnswB, oldAnswC]);
 				if (!oldAnsw.lessThan16()) {
 					res.send({status: 1002, desc: 'old_answ_a,old_answ_b or old_answ_c invalid'});

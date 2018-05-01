@@ -279,17 +279,6 @@ var setProtection = function(userid, params, callback) {
 		}
 		// 首次设置
 		if (params.type === '0') {
-			// 密码连续错误5次
-			var tryTimes = userInfo.try_times;
-			if (tryTimes >= 5) {
-				callback({status: 2009});
-				return;
-			}
-			// 验证密码
-			if (userInfo.password !== md5(params.password)) {
-				_setTryTimes(userid, tryTimes + 1, callback);
-				return;
-			}
 			if (userInfo.ques && userInfo.answ) {
 				// 已经设置过密保问题和答案
 				callback({status: 2008});
