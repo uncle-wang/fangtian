@@ -9,40 +9,16 @@ var _release = function(connection) {
 	connection.release && connection.release();
 };
 
-// 更新密码连续错误次数
-var __setTryTimes = function(userid, time, callback) {
-
-	sql.query('update users set try_times=' + time + ' where id=' + userid, function(err, result) {
-		if (err) {
-			callback({status: 1003, desc: err});
-			return;
-		}
-		callback({status: 1000, time: time});
-	});
-};
 // 密码连续错误次数+1
-var _addTryTimes = function(userid, callback) {
+var _setTryTimes = function(userid, times, callback) {
 
-	sql.query('select try_times from users where id=' + userid, function(err, result) {
-		if (err) {
-			callback({status: 1003, desc: err});
+	sql.query('update users set try_times=' + times + ' where id=' + userid, function(errB, resultB) {
+		if (errB) {
+			callback({status: 1003, desc: errB});
 			return;
 		}
-		var userInfo = result[0];
-		if (!userInfo) {
-			callback({status: 2002});
-			return;
-		}
-		var currentTimes = userInfo.try_times;
-		__setTryTimes(userid, currentTimes + 1, function(resultMap) {
-			callback(resultMap);
-		});
+		callback({status: 2005, wrongTimes: times});
 	});
-};
-// 重置密码错误次数
-var _resetTryTimes = function(userid, callback) {
-
-	__setTryTimes(userid, 0, callback);
 };
 
 // 登陆 1-成功 0-用户不存在 2-密码错误
@@ -59,19 +35,13 @@ var login = function(username, password, callback) {
 			return;
 		}
 		// 密码连续错误5次
-		if (userInfo.try_times >= 5) {
+		var tryTimes = userInfo.try_times;
+		if (tryTimes >= 5) {
 			callback({status: 2009});
 			return;
 		}
 		if (userInfo.password !== md5(password)) {
-			_addTryTimes(userInfo.id, function(resultMap) {
-				if (resultMap.status === 1000) {
-					callback({status: 2005, wrongTimes: resultMap.time});
-				}
-				else {
-					callback(resultMap);
-				}
-			});
+			_setTryTimes(userInfo.id, tryTimes + 1, callback);
 			return;
 		}
 		sql.query('update users set last_login_time=' + Date.now() + ',try_times=0 where id=' + userInfo.id, function(errB, resultB) {
@@ -155,29 +125,34 @@ var register = function(username, password, nickname, callback) {
 // 修改密码
 var updatePassword = function(userId, oldpassword, newpassword, callback) {
 
-	sql.query('select password from users where id=' + userId, function(errA, resultA) {
+	sql.query('select password,try_times from users where id=' + userId, function(errA, resultA) {
 		if (errA) {
 			callback({status: 1003, desc: errA});
 			return;
 		}
 		var userInfo = resultA[0];
-		if (userInfo) {
-			var password = userInfo.password;
-			if (md5(oldpassword) !== password) {
-				callback({status: 2005});
+		if (!userInfo) {
+			callback({status: 2002});
+			return;
+		}
+		// 密码连续错误5次
+		var tryTimes = userInfo.try_times;
+		if (tryTimes >= 5) {
+			callback({status: 2009});
+			return;
+		}
+		var password = userInfo.password;
+		if (md5(oldpassword) !== password) {
+			_setTryTimes(userId, tryTimes + 1, callback);
+			return;
+		}
+		sql.query('update users set password="' + md5(newpassword) + '",try_times=0 where id="' + userId + '"', function(errB, resultB) {
+			if (errB) {
+				callback({status: 1003, desc: errB});
 				return;
 			}
-			sql.query('update users set password="' + md5(newpassword) + '" where id="' + userId + '"', function(errB, resultB) {
-				if (errB) {
-					callback({status: 1003, desc: errB});
-					return;
-				}
-				callback({status: 1000});
-			});
-		}
-		else {
-			callback({status: 2002});
-		}
+			callback({status: 1000});
+		});
 	});
 };
 
@@ -272,9 +247,14 @@ var resetPasswordByProtection = function(username, password, answA, answB, answC
 };
 
 // 设置密保问题
-var _setProtection = function(userid, ques, answ, callback) {
+var _setProtection = function(userid, ques, answ, reset_trytimes, callback) {
 
-	sql.query('update users set ques="' + ques + '",answ="' + answ + '" where id=' + userid, function(err, result) {
+	var queryStr = 'update users set ques="' + ques + '",answ="' + answ + '"';
+	if (reset_trytimes) {
+		queryStr = queryStr + ',try_times=0';
+	}
+	queryStr = queryStr + ' where id=' + userid;
+	sql.query(queryStr, function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 		}
@@ -287,7 +267,7 @@ var setProtection = function(userid, params, callback) {
 
 	var newQues = encodeURIComponent(params.new_ques_a) + ',' + encodeURIComponent(params.new_ques_b) + ',' + encodeURIComponent(params.new_ques_c);
 	var newAnsw = md5(params.new_answ_a) + ',' + md5(params.new_answ_b) + ',' + md5(params.new_answ_c);
-	sql.query('select password,ques,answ from users where id=' + userid, function(err, result) {
+	sql.query('select password,try_times,ques,answ from users where id=' + userid, function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
@@ -299,9 +279,15 @@ var setProtection = function(userid, params, callback) {
 		}
 		// 首次设置
 		if (params.type === '0') {
+			// 密码连续错误5次
+			var tryTimes = userInfo.try_times;
+			if (tryTimes >= 5) {
+				callback({status: 2009});
+				return;
+			}
 			// 验证密码
 			if (userInfo.password !== md5(params.password)) {
-				callback({status: 2005});
+				_setTryTimes(userid, tryTimes + 1, callback);
 				return;
 			}
 			if (userInfo.ques && userInfo.answ) {
@@ -309,7 +295,7 @@ var setProtection = function(userid, params, callback) {
 				callback({status: 2008});
 			}
 			else {
-				_setProtection(userid, newQues, newAnsw, callback);
+				_setProtection(userid, newQues, newAnsw, true, callback);
 			}
 		}
 		// 非首次设置
@@ -318,7 +304,7 @@ var setProtection = function(userid, params, callback) {
 				var oldAnsw = md5(params.old_answ_a) + ',' + md5(params.old_answ_b) + ',' + md5(params.old_answ_c);
 				// 验证原密保答案
 				if (oldAnsw === userInfo.answ) {
-					_setProtection(userid, newQues, newAnsw, callback);
+					_setProtection(userid, newQues, newAnsw, false, callback);
 				}
 				else {
 					callback({status: 2006});
