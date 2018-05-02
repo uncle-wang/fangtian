@@ -212,7 +212,7 @@ var getQuestionsById = function(userid, callback) {
 };
 
 // 重置密码
-var resetPasswordByProtection = function(username, password, answA, answB, answC, callback) {
+var resetPassword = function(username, password, answA, answB, answC, callback) {
 
 	sql.query('select id,answ from users where name="' + username + '"', function(errA, resultA) {
 		if (errA) {
@@ -227,7 +227,7 @@ var resetPasswordByProtection = function(username, password, answA, answB, answC
 		var answ = userInfo.answ;
 		if (answ) {
 			if (md5(answA) + ',' + md5(answB) + ',' + md5(answC) === answ) {
-				sql.query('update users set password="' + md5(password) + '" where id=' + userInfo.id, function(errB, resultB) {
+				sql.query('update users set password="' + md5(password) + '",try_times=0 where id=' + userInfo.id, function(errB, resultB) {
 					if (errB) {
 						callback({status: 1003, desc: errB});
 					}
@@ -758,7 +758,7 @@ module.exports = {
 	updatePassword: updatePassword,
 	getQuestionsByName: getQuestionsByName,
 	getQuestionsById: getQuestionsById,
-	resetPasswordByProtection: resetPasswordByProtection,
+	resetPassword: resetPassword,
 	setProtection: setProtection,
 	createRecharge: createRecharge,
 	getRechargeHistoryByUser: getRechargeHistoryByUser,

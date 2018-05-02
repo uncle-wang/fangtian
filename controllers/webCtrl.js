@@ -135,7 +135,7 @@ module.exports = function(app) {
 	});
 
 	// 重置密码
-	app.get('/resetPasswordByProtection', function(req, res) {
+	app.get('/resetPassword', function(req, res) {
 
 		var username = req.query.username;
 		var password = req.query.password;
@@ -143,7 +143,7 @@ module.exports = function(app) {
 		var answB = req.query.answ_b;
 		var answC = req.query.answ_c;
 		if (username && password && answA && answB && answC) {
-			api.resetPasswordByProtection(username, password, answA, answB, answC, function(resultMap) {
+			api.resetPassword(username, password, answA, answB, answC, function(resultMap) {
 				res.send(resultMap);
 			});
 		}
