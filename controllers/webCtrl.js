@@ -392,4 +392,24 @@ module.exports = function(app) {
 		}
 	});
 
+	// 取消提现订单
+	app.get('/cancelPickup', function(req, res) {
+
+		var userId = req.session.userid;
+		var pickupId = req.query.id;
+		if (userId) {
+			if (pickupId) {
+				api.cancelPickup(userId, pickupId, function(resultMap) {
+					res.send(resultMap);
+				});
+			}
+			else {
+				res.send({status: 1002, desc: 'id required'});;
+			}
+		}
+		else {
+			res.send({status: 1001});
+		}
+	});
+
 };

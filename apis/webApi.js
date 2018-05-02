@@ -633,6 +633,84 @@ var getPickupHistoryByUser = function(userid, callback) {
 	});
 };
 
+// 取消提现订单
+var cancelPickup = function(userid, pickupid, callback) {
+
+	sql.trans(function(transerr, conn) {
+		if (transerr) {
+			callback({status: 1003, desc: transerr});
+			return;
+		}
+		conn.query('select * from pickup where id=' + pickupid + ' for update', function(errA, resultA) {
+			if (errA) {
+				_release(conn);
+				callback({status: 1003, desc: errA});
+				return;
+			}
+			var pickupInfo = resultA[0];
+			// 订单不存在
+			if (!pickupInfo) {
+				_release(conn);
+				callback({status: 3001});
+				return;
+			}
+			// 当前操作用户与创建订单用户不匹配
+			if (pickupInfo.user !== userid) {
+				_release(conn);
+				callback({status: 3002});
+				return;
+			}
+			// 非等待处理状态
+			if (pickupInfo.status !== '0') {
+				_release(conn);
+				callback({status: 3003});
+				return;
+			}
+			// 删除订单
+			conn.query('update pickup set status="2" where id=' + pickupid, function(errB, resultB) {
+				if (errB) {
+					_release(conn);
+					callback({status: 1003, desc: errB});
+					return;
+				}
+				// 返还余额
+				var quota = pickupInfo.quota + pickupInfo.fees;
+				conn.query('select balance from users where id=' + userid + ' for update', function(errC, resultC) {
+					if (errC) {
+						_release(conn);
+						callback({status: 1003, desc: errC});
+						return;
+					}
+					var userInfo = resultC[0];
+					if (!userInfo) {
+						_release(conn);
+						callback({status: 2002});
+						return;
+					}
+					var balance = userInfo.balance;
+					conn.query('update users set balance=' + (balance + quota) + ' where id=' + userid, function(errD, resultD) {
+						if (errD) {
+							_release(conn);
+							callback({status: 1003, desc: errD});
+							return;
+						}
+						conn.commit(function(comerr) {
+							if (comerr) {
+								_release(conn);
+								callback({status: 1003, desc: comerr});
+								return;
+							}
+							conn.release();
+							callback({status: 1000});
+							return;
+						});
+					});
+				});
+			});
+		});
+	});
+};
+
 module.exports = {
 
 	login: login,
@@ -652,5 +730,6 @@ module.exports = {
 	getOrderHistoryByUser: getOrderHistoryByUser,
 	createConfessedOrder: createConfessedOrder,
 	pickup: pickup,
-	getPickupHistoryByUser: getPickupHistoryByUser
+	getPickupHistoryByUser: getPickupHistoryByUser,
+	cancelPickup: cancelPickup
 };
