@@ -107,10 +107,6 @@ schedule.scheduleJob('0 30 ' + (7 + tzOffset) + ' * * *', function() {
 			console.log(d, '[RESULT] date not match', data);
 			return;
 		}
-		if (data.end !== 1) {
-			console.log(d, '[RESULT] game not end', data);
-			return;
-		}
 		var list = data.list;
 		if (list) {
 			var szData = list[0];
