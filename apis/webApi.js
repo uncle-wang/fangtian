@@ -621,7 +621,7 @@ var pickup = function(userid, quota, callback) {
 			}
 			var balance = userInfo.balance;
 			// 手续费
-			var fees = Math.ceil(quota * 6 / 100);
+			var fees = Math.ceil(quota * 2 / 100);
 			var newBalance = balance - quota - fees;
 			// 余额不足
 			if (newBalance < 0) {
