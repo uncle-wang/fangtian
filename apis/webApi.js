@@ -562,6 +562,36 @@ var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 };
 
 // 提现
+// 每日提现次数限制为2次，若用户提现次数已达到2次并且上上次提现时间在今天(0时区)，则不可再提现
+var _pickupTimeValid = function(pickupStampsStr) {
+	if (pickupStampsStr) {
+		var pickupStamps = pickupStampsStr.split(',');
+		if (pickupStamps.length >= 2) {
+			// 上上次提现时间
+			var llastPickupStamp = parseInt(pickupStamps[0]);
+			// 今日00:00:00
+			var today = new Date();
+			today.setHours(0);
+			today.setMinutes(0);
+			today.setSeconds(0);
+			if (llastPickupStamp >= today.getTime()) {
+				return false;
+			}
+		}
+	}
+	return true;
+};
+// 更新最新一次的提现时间
+var _updatePickupTime = function(pickupStampsStr) {
+	var nowStamp = Date.now();
+	if (pickupStampsStr) {
+		var pickupStamps = pickupStampsStr.split(',');
+		return pickupStamps[pickupStamps.length - 1] + ',' + nowStamp;
+	}
+	else {
+		return '' + nowStamp;
+	}
+};
 var pickup = function(userid, quota, callback) {
 
 	sql.trans(function(transerr, conn) {
@@ -569,19 +599,27 @@ var pickup = function(userid, quota, callback) {
 			callback({status: 1003, desc: transerr});
 			return;
 		}
-		conn.query('select balance from users where id=' + userid + ' for update', function(errA, resultA) {
+		conn.query('select balance,last_pickup_time from users where id=' + userid + ' for update', function(errA, resultA) {
 			if (errA) {
 				_release(conn);
 				callback({status: 1003, desc: errA});
 				return;
 			}
 			// 用户不存在
-			if (resultA.length <= 0) {
+			var userInfo = resultA[0];
+			if (!userInfo) {
 				_release(conn);
 				callback({status: 2002});
 				return;
 			}
-			var balance = resultA[0].balance;
+			// 验证今日提现次数是否已达上限(每日2次)
+			var lastPickupStr = userInfo.last_pickup_time;
+			if (!_pickupTimeValid(lastPickupStr)) {
+				_release(conn);
+				callback({status: 3004})
+				return;
+			}
+			var balance = userInfo.balance;
 			// 手续费
 			var fees = Math.ceil(quota * 6 / 100);
 			var newBalance = balance - quota - fees;
@@ -592,7 +630,8 @@ var pickup = function(userid, quota, callback) {
 				return;
 			}
 			// 扣款
-			conn.query('update users set balance=' + newBalance + ' where id=' + userid, function(errB, resultB) {
+			var newPickupTimeStr = _updatePickupTime(lastPickupStr);
+			conn.query('update users set balance=' + newBalance + ',last_pickup_time="' + newPickupTimeStr + '" where id=' + userid, function(errB, resultB) {
 				if (errB) {
 					_release(conn);
 					callback({status: 1003, desc: errB});
