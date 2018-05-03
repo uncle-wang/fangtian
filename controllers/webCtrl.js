@@ -353,6 +353,49 @@ module.exports = function(app) {
 		});
 	});
 
+	// 绑定支付宝(不验证密保)
+	app.get('/setAlipayWithoutProtection', function(req, res) {
+
+		var userId = req.session.userid;
+		if (userId) {
+			var alipay = req.query.alipay;
+			if (alipay) {
+				api.setAlipayWithoutProtection(userId, alipay, function(resultMap) {
+					res.send(resultMap);
+				});
+			}
+			else {
+				res.send({status: 1002, desc: 'alipay required'});
+			}
+		}
+		else {
+			res.send({status: 1001});
+		}
+	});
+
+	// 绑定支付宝(验证密保)
+	app.get('/setAlipayWithProtection', function(req, res) {
+
+		var userId = req.session.userid;
+		if (userId) {
+			var alipay = req.query.alipay;
+			var answ_a = req.query.answ_a;
+			var answ_b = req.query.answ_b;
+			var answ_c = req.query.answ_c;
+			if (alipay && answ_a && answ_b && answ_c) {
+				api.setAlipayWithProtection(userId, alipay, answ_a, answ_b, answ_c, function(resultMap) {
+					res.send(resultMap);
+				});
+			}
+			else {
+				res.send({status: 1002, desc: 'alipay, answ_a, answ_b and answ_c required'});
+			}
+		}
+		else {
+			res.send({status: 1001});
+		}
+	});
+
 	// 提现
 	app.get('/pickup', function(req, res) {
 

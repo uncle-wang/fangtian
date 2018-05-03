@@ -57,7 +57,7 @@ var login = function(username, password, callback) {
 // 获取用户信息
 var getUserInfo = function(userId, callback) {
 
-	sql.query('select name,nick,balance,last_login_time,ques,answ from users where id=' + userId, function(err, result) {
+	sql.query('select name,nick,balance,last_login_time,ques,answ,alipay from users where id=' + userId, function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
@@ -72,6 +72,7 @@ var getUserInfo = function(userId, callback) {
 		obj.nick = userInfo.nick;
 		obj.balance = userInfo.balance;
 		obj.last_login_time = userInfo.last_login_time;
+		obj.alipay = userInfo.alipay;
 		if (userInfo.ques && userInfo.answ) {
 			obj.protection = true;
 		}
@@ -561,6 +562,67 @@ var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 	});
 };
 
+// 绑定支付宝(不验证密保)
+var setAlipayWithoutProtection = function(userid, alipay, callback) {
+
+	sql.query('select * from users where id=' + userid, function(errA, resultA) {
+		if (errA) {
+			callback({status: 1003, desc: errA});
+			return;
+		}
+		var userInfo = resultA[0];
+		if (!userInfo) {
+			callback({status: 2002});
+			return;
+		}
+		if (userInfo.ques && userInfo.answ) {
+			callback({status: 2008});
+			return;
+		}
+		sql.query('update users set alipay="' + alipay + '" where id=' + userid, function(errB, resultB) {
+			if (errB) {
+				callback({status: 1003, desc: errB});
+				return;
+			}
+			callback({status: 1000});
+		});
+	});
+};
+
+// 绑定支付宝(验证密保)
+var setAlipayWithProtection = function(userid, alipay, answA, answB, answC, callback) {
+
+	sql.query('select * from users where id=' + userid, function(errA, resultA) {
+		if (errA) {
+			callback({status: 1003, desc: errA});
+			return;
+		}
+		var userInfo = resultA[0];
+		if (!userInfo) {
+			callback({status: 2002});
+			return;
+		}
+		var ques = userInfo.ques, answ = userInfo.answ;
+		if (ques && answ) {
+			if (md5(answA) + ',' + md5(answB) + ',' + md5(answC) !== answ) {
+				callback({status: 2006});
+				return;
+			}
+			sql.query('update users set alipay="' + alipay + '" where id=' + userid, function(errB, resultB) {
+				if (errB) {
+					callback({status: 1003, desc: errB});
+					return;
+				}
+				callback({status: 1000});
+			});
+		}
+		else {
+			callback({status: 2007});
+			return;
+		}
+	});
+};
+
 // 提现
 // 每日提现次数限制为2次，若用户提现次数已达到2次并且上上次提现时间在今天(0时区)，则不可再提现
 var _pickupTimeValid = function(pickupStampsStr) {
@@ -768,6 +830,8 @@ module.exports = {
 	getConfessedGameHistory: getConfessedGameHistory,
 	getOrderHistoryByUser: getOrderHistoryByUser,
 	createConfessedOrder: createConfessedOrder,
+	setAlipayWithoutProtection: setAlipayWithoutProtection,
+	setAlipayWithProtection: setAlipayWithProtection,
 	pickup: pickup,
 	getPickupHistoryByUser: getPickupHistoryByUser,
 	cancelPickup: cancelPickup
