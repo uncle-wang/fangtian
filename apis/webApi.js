@@ -661,7 +661,7 @@ var pickup = function(userid, quota, callback) {
 			callback({status: 1003, desc: transerr});
 			return;
 		}
-		conn.query('select balance,last_pickup_time from users where id=' + userid + ' for update', function(errA, resultA) {
+		conn.query('select balance,alipay,last_pickup_time from users where id=' + userid + ' for update', function(errA, resultA) {
 			if (errA) {
 				_release(conn);
 				callback({status: 1003, desc: errA});
@@ -679,6 +679,13 @@ var pickup = function(userid, quota, callback) {
 			if (!_pickupTimeValid(lastPickupStr)) {
 				_release(conn);
 				callback({status: 3004})
+				return;
+			}
+			// 未绑定支付宝
+			var alipay = userInfo.alipay;
+			if (!alipay) {
+				_release(conn);
+				callback({status: 6001});
 				return;
 			}
 			var balance = userInfo.balance;
@@ -700,7 +707,7 @@ var pickup = function(userid, quota, callback) {
 					return;
 				}
 				// 创建提现订单
-				conn.query('insert into pickup(user,quota,fees,create_time) values(' + userid + ',' + quota + ',' + fees + ',' + Date.now() + ')', function(errC, resultC) {
+				conn.query('insert into pickup(user,alipay,quota,fees,create_time) values(' + userid + ',"' + alipay + '",' + quota + ',' + fees + ',' + Date.now() + ')', function(errC, resultC) {
 					if (errC) {
 						_release(conn);
 						callback({status: 1003, desc: errC});
