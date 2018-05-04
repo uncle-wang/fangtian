@@ -38,6 +38,18 @@ var getBjTime = function() {
 	return d;
 };
 
+// 获取最近的非假日时间
+var getWorkDate = function() {
+
+	var gameId, bjTime = getBjTime();
+	do {
+		bjTime.setDate(bjTime.getDate() + 1);
+		gameId = bjTime.getFullYear() + _zeroFixed(bjTime.getMonth() + 1) + _zeroFixed(bjTime.getDate());
+	}
+	while (isWeekend(bjTime) || holidays.indexOf(gameId) > -1)
+	return {gameId: gameId, timeStamp: bjTime.getTime()};
+};
+
 // 判断是否周末
 var isWeekend = function(d) {
 
@@ -95,8 +107,8 @@ schedule.scheduleJob('0 30 ' + (6 + tzOffset) + ' * * *', function() {
 	});
 });
 
-// 北京时间每日15:30更新结果
-schedule.scheduleJob('0 30 ' + (7 + tzOffset) + ' * * *', function() {
+// 北京时间每日15:20更新结果
+schedule.scheduleJob('0 20 ' + (7 + tzOffset) + ' * * *', function() {
 
 	var d = getBjTime();
 	if (isWeekend(d)) {
@@ -136,34 +148,24 @@ schedule.scheduleJob('0 30 ' + (7 + tzOffset) + ' * * *', function() {
 	});
 });
 
-// 北京时间每日17:00开盘
-schedule.scheduleJob('0 0 ' + (9 + tzOffset) + ' * * *', function() {
+// 北京时间每日16:00开盘
+schedule.scheduleJob('0 0 ' + (8 + tzOffset) + ' * * *', function() {
 
 	var current = new Date();
-	var bjTime = getBjTime();
-	bjTime.setDate(bjTime.getDate() + 1);
-	if (isWeekend(bjTime)) {
-		console.log(current, '[NEWGAME] weekend');
-		return;
-	}
-	var gameId = bjTime.getFullYear() + _zeroFixed(bjTime.getMonth() + 1) + _zeroFixed(bjTime.getDate());
-	if (holidays.indexOf(gameId) > -1) {
-		console.log(current, '[NEWGAME] holiday');
-		return;
-	}
+	var workDateObj = getWorkDate();
 	// 封盘时间
-	var disableTime = getBjTime();
-	disableTime.setDate(disableTime.getDate() + 1);
+	var disableTime = new Date(workDateObj.timeStamp);
 	disableTime.setHours(14);
 	disableTime.setMinutes(30);
+	disableTime.setSeconds(0);
 	disableTime.setHours(disableTime.getHours() - 8 + tzOffset);
 	// 关闭时间
-	var closeTime = getBjTime();
-	closeTime.setDate(closeTime.getDate() + 1);
+	var closeTime = new Date(workDateObj.timeStamp);
 	closeTime.setHours(15);
-	closeTime.setMinutes(30);
+	closeTime.setMinutes(20);
+	closeTime.setSeconds(0);
 	closeTime.setHours(closeTime.getHours() - 8 + tzOffset);
-	adminApi.createGame(gameId, disableTime.getTime(), closeTime.getTime(), function(resultMap) {
+	adminApi.createGame(workDateObj.gameId, disableTime.getTime(), closeTime.getTime(), function(resultMap) {
 		if (resultMap.status === 1000) {
 			console.log(current, '[NEWGAME] ok');
 		}
