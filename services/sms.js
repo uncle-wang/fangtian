@@ -18,12 +18,10 @@ var _sendMessage = function(phone, template, param) {
 	.sendSMS(options)
 	.then(
 		// 成功
-		function(res) {
-			console.log(res);
-		},
+		function(res) {},
 		// 失败
 		function (err) {
-			console.log(err);
+			console.log('[SMS] error', err);
 		}
 	);
 };
