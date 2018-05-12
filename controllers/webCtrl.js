@@ -4,6 +4,8 @@ var md5 = require('md5');
 var api = require('./../apis/webApi');
 // 参数格式验证
 var Inspect = require('./../services/inspect');
+// 短息服务模块
+var sms = require('./../services/sms');
 // 加载配置文件
 var PAYCONFIG = require('./../config').PAYMENT;
 
@@ -12,14 +14,14 @@ module.exports = function(app) {
 	// 登陆
 	app.get('/sign', function(req, res) {
 
-		var username = req.query.username;
+		var tel = req.query.tel;
 		var password = req.query.password;
-		if (username && password) {
-			api.login(username, password, function(resultMap) {
+		if (tel && password) {
+			api.login(tel, password, function(resultMap) {
 				if (resultMap.status === 1000) {
 					var userInfo = resultMap.userInfo;
 					req.session.userid = userInfo.id;
-					req.session.username = userInfo.name;
+					req.session.tel = userInfo.tel;
 					res.send({status: 1000});
 				}
 				else {
@@ -28,7 +30,7 @@ module.exports = function(app) {
 			});
 		}
 		else {
-			res.send({status: 1002, desc: 'username and password required'});
+			res.send({status: 1002, desc: 'tel and password required'});
 		}
 	});
 
@@ -68,17 +70,38 @@ module.exports = function(app) {
 	// 注册
 	app.get('/register', function(req, res) {
 
-		var username = req.query.username;
+		var tel = req.query.tel;
+		var code = req.query.code;
 		var password = req.query.password;
 		var nickname = req.query.nickname;
 
-		if (username && password && nickname) {
-			api.register(username, password, nickname, function(resultMap) {
+		if (tel && code && password && nickname) {
+			api.register(tel, code, password, nickname, function(resultMap) {
 				res.send(resultMap);
 			});
 		}
 		else {
-			res.send({status: 1002, desc: 'username, password, nickname required'});
+			res.send({status: 1002, desc: 'tel, code, password, nickname required'});
+		}
+	});
+
+	// 创建并发送注册验证码
+	app.get('/sendRegisterCode', function(req, res) {
+
+		var tel = req.query.tel;
+		var reg = /^1\d{10}$/;
+		if (tel) {
+			if (reg.test(tel)) {
+				api.sendRegisterCode(tel, function(resultMap) {
+					res.send(resultMap);
+				});
+			}
+			else {
+				res.send({status: 1002, desc: 'tel invalid'});
+			}
+		}
+		else {
+			res.send({status: 1002, desc: 'tel required'});
 		}
 	});
 
@@ -106,86 +129,69 @@ module.exports = function(app) {
 		}
 	});
 
-	// 查询密保问题(通过用户名)
-	app.get('/getQuestionsByName', function(req, res) {
+	// 重置密码
+	app.get('/resetPassword', function(req, res) {
 
-		var username = req.query.username;
-		if (username) {
-			api.getQuestionsByName(username, function(resultMap) {
+		var tel = req.query.tel;
+		var code = req.query.code;
+		var password = req.query.password;
+		if (tel && code && password) {
+			api.resetPassword(tel, code, password, function(resultMap) {
 				res.send(resultMap);
 			});
 		}
 		else {
-			res.send({status: 1002, desc: 'username required'});
+			res.send({status: 1002, desc: 'tel, code, password required'});
 		}
 	});
 
-	// 查询密保问题(当前已登录用户)
-	app.get('/getQuestions', function(req, res) {
+	// 创建并发送重置密码验证码
+	app.get('/sendResetCode', function(req, res) {
+
+		var tel = req.query.tel;
+		var reg = /^1\d{10}$/;
+		if (tel) {
+			if (reg.test(tel)) {
+				api.sendResetCode(tel, function(resultMap) {
+					res.send(resultMap);
+				});
+			}
+			else {
+				res.send({status: 1002, desc: 'tel invalid'});
+			}
+		}
+		else {
+			res.send({status: 1002, desc: 'tel required'});
+		}
+	});
+
+	// 绑定支付宝
+	app.get('/setAlipay', function(req, res) {
 
 		var userId = req.session.userid;
 		if (userId) {
-			api.getQuestionsById(userId, function(resultMap) {
-				res.send(resultMap);
-			});
+			var alipay = req.query.alipay;
+			var code = req.query.code;
+			if (alipay && code) {
+				api.setAlipay(userId, alipay, code, function(resultMap) {
+					res.send(resultMap);
+				});
+			}
+			else {
+				res.send({status: 1002, desc: 'alipay and code required'});
+			}
 		}
 		else {
 			res.send({status: 1001});
 		}
 	});
 
-	// 重置密码
-	app.get('/resetPassword', function(req, res) {
-
-		var username = req.query.username;
-		var password = req.query.password;
-		var answA = req.query.answ_a;
-		var answB = req.query.answ_b;
-		var answC = req.query.answ_c;
-		if (username && password && answA && answB && answC) {
-			api.resetPassword(username, password, answA, answB, answC, function(resultMap) {
-				res.send(resultMap);
-			});
-		}
-		else {
-			res.send({status: 1002, desc: 'username, password, answ_a, answ_b, answ_c required'});
-		}
-	});
-
-	// 设置密保问题
-	app.get('/setProtection', function(req, res) {
+	// 创建并发送绑定支付宝验证码
+	app.get('/sendAlipayCode', function(req, res) {
 
 		var userId = req.session.userid;
 		if (userId) {
-			var type = req.query.type;
-			var oldAnswA = req.query.old_answ_a;
-			var oldAnswB = req.query.old_answ_b;
-			var oldAnswC = req.query.old_answ_c;
-			var newQuesA = req.query.new_ques_a;
-			var newQuesB = req.query.new_ques_b;
-			var newQuesC = req.query.new_ques_c;
-			var newAnswA = req.query.new_answ_a;
-			var newAnswB = req.query.new_answ_b;
-			var newAnswC = req.query.new_answ_c;
-			// type: 0-首次设置 1-非首次设置
-			if (type !== '1' && type !== '0') {
-				res.send({status: 1002, desc: 'type invalid, only 0 or 1'});
-				return;
-			}
-			var newQuesAndAnsw = new Inspect([newQuesA, newQuesB, newQuesC, newAnswA, newAnswB, newAnswC]);
-			if (!newQuesAndAnsw.lessThan16()) {
-				res.send({status: 1002, desc: 'the length of questions or answers is invalid'});
-				return;
-			}
-			// 非首次设置需要验证旧答案
-			if (type === '1') {
-				var oldAnsw = new Inspect([oldAnswA, oldAnswB, oldAnswC]);
-				if (!oldAnsw.lessThan16()) {
-					res.send({status: 1002, desc: 'old_answ_a,old_answ_b or old_answ_c invalid'});
-					return;
-				}
-			}
-			api.setProtection(userId, req.query, function(resultMap) {
+			api.sendAlipayCode(userId, function(resultMap) {
 				res.send(resultMap);
 			});
 		}
@@ -353,49 +359,6 @@ module.exports = function(app) {
 		});
 	});
 
-	// 绑定支付宝(不验证密保)
-	app.get('/setAlipayWithoutProtection', function(req, res) {
-
-		var userId = req.session.userid;
-		if (userId) {
-			var alipay = req.query.alipay;
-			if (alipay) {
-				api.setAlipayWithoutProtection(userId, alipay, function(resultMap) {
-					res.send(resultMap);
-				});
-			}
-			else {
-				res.send({status: 1002, desc: 'alipay required'});
-			}
-		}
-		else {
-			res.send({status: 1001});
-		}
-	});
-
-	// 绑定支付宝(验证密保)
-	app.get('/setAlipayWithProtection', function(req, res) {
-
-		var userId = req.session.userid;
-		if (userId) {
-			var alipay = req.query.alipay;
-			var answ_a = req.query.answ_a;
-			var answ_b = req.query.answ_b;
-			var answ_c = req.query.answ_c;
-			if (alipay && answ_a && answ_b && answ_c) {
-				api.setAlipayWithProtection(userId, alipay, answ_a, answ_b, answ_c, function(resultMap) {
-					res.send(resultMap);
-				});
-			}
-			else {
-				res.send({status: 1002, desc: 'alipay, answ_a, answ_b and answ_c required'});
-			}
-		}
-		else {
-			res.send({status: 1001});
-		}
-	});
-
 	// 提现
 	app.get('/pickup', function(req, res) {
 
@@ -403,18 +366,19 @@ module.exports = function(app) {
 		if (userId) {
 			var reg = /^[1-9]\d*$/;
 			var quota = req.query.quota;
-			if (quota) {
+			var alipay = req.query.alipay;
+			if (quota && alipay) {
 				if (reg.test(quota)) {
 					quota = parseInt(quota);
 					if (quota >= 100) {
-						api.pickup(userId, quota, function(resultMap) {
+						api.pickup(userId, quota, alipay, function(resultMap) {
 							res.send(resultMap);
 						});
 						return;
 					}
 				}
 			}
-			res.send({status: 1002, desc: 'quota invalid'});
+			res.send({status: 1002, desc: 'quota and alipay invalid'});
 		}
 		else {
 			res.send({status: 1001});

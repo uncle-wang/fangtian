@@ -2,6 +2,10 @@
 var md5 = require('md5');
 // 加载sql模块
 var sql = require('./../services/sql');
+// 短信服务模块
+var sms = require('./../services/sms');
+// 时区
+var timeZone = require('./../config').TIMEZONE;
 
 var _release = function(connection) {
 
@@ -21,10 +25,20 @@ var _setTryTimes = function(userid, times, callback) {
 	});
 };
 
-// 登陆 1-成功 0-用户不存在 2-密码错误
-var login = function(username, password, callback) {
+// 创建6位数字的验证码
+var _createRandomCode = function() {
 
-	sql.query('select * from users where name="' + username + '"', function(errA, resultA) {
+	var s = '';
+	for (var i = 0; i < 6; i ++) {
+		s = s + Math.floor(Math.random() * 10);
+	}
+	return s;
+};
+
+// 登陆 1-成功 0-用户不存在 2-密码错误
+var login = function(tel, password, callback) {
+
+	sql.query('select * from users where tel="' + tel + '"', function(errA, resultA) {
 		if (errA) {
 			callback({status: 1003, desc: errA});
 			return;
@@ -44,7 +58,7 @@ var login = function(username, password, callback) {
 			_setTryTimes(userInfo.id, tryTimes + 1, callback);
 			return;
 		}
-		sql.query('update users set last_login_time=' + Date.now() + ',try_times=0 where id=' + userInfo.id, function(errB, resultB) {
+		sql.query('update users set try_times=0 where id=' + userInfo.id, function(errB, resultB) {
 			if (errB) {
 				callback({status: 1003, desc: errB});
 				return;
@@ -57,7 +71,7 @@ var login = function(username, password, callback) {
 // 获取用户信息
 var getUserInfo = function(userId, callback) {
 
-	sql.query('select name,nick,balance,last_login_time,ques,answ,alipay from users where id=' + userId, function(err, result) {
+	sql.query('select tel,nick,balance,alipay from users where id=' + userId, function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
@@ -67,31 +81,21 @@ var getUserInfo = function(userId, callback) {
 			callback({status: 2002});
 			return;
 		}
-		var obj = {};
-		obj.name = userInfo.name;
-		obj.nick = userInfo.nick;
-		obj.balance = userInfo.balance;
-		obj.last_login_time = userInfo.last_login_time;
-		obj.alipay = userInfo.alipay;
-		if (userInfo.ques && userInfo.answ) {
-			obj.protection = true;
-		}
-		else {
-			obj.protection = false;
-		}
-		callback({status: 1000, userInfo: obj});
+		callback({status: 1000, userInfo: userInfo});
 	});
 };
 
 // 注册 1-成功 0-数据库异常
-var register = function(username, password, nickname, callback) {
+var register = function(tel, code, password, nickname, callback) {
 
+	var nowStamp = Date.now();
 	sql.trans(function(transerr, connection) {
 		if (transerr) {
 			callback({status: 1003, desc: transerr});
 			return;
 		}
-		connection.query('select id from users where name="' + username + '" for update', function(usererr, result) {
+		// 判断手机号是否已被注册
+		connection.query('select id from users where tel="' + tel + '" for update', function(usererr, result) {
 			if (usererr) {
 				_release(connection);
 				callback({status: 1003, desc: usererr});
@@ -102,22 +106,88 @@ var register = function(username, password, nickname, callback) {
 				callback({status: 2001});
 				return;
 			}
-			connection.query('insert into users(name,password,nick,create_time) values("' + username + '","' + md5(password) + '","' + nickname + '", ' + Date.now() + ')', function(createerr, result) {
-				if (createerr) {
+			// 验证码校验
+			connection.query('select id,code from code where tel="' + tel + '" and type="0" and consumed=0 and create_time>' + (nowStamp - 300000) + ' for update', function(codeerr, result) {
+				if (codeerr) {
 					_release(connection);
-					callback(createerr);
+					callback({status: 1003, desc: codeerr});
 					return;
 				}
-				connection.commit(function(commiterr) {
-					if (commiterr) {
+				var codeArr = [];
+				for (var i = 0; i < result.length; i ++) {
+					codeArr.push(result[i].code);
+				}
+				var codeIndex = codeArr.indexOf(code);
+				if (codeIndex < 0) {
+					_release(connection);
+					callback({status: 8001});
+					return;
+				}
+				var codeInfo = result[codeIndex];
+				// 将该验证码置为已消费状态
+				connection.query('update code set consumed=1 where id=' + codeInfo.id, function(conserr, result) {
+					if (conserr) {
 						_release(connection);
-						callback({status: 1003, desc: commiterr});
+						callback({status: 1003, desc: conserr});
+						return;
 					}
-					else {
-						connection.release();
-						callback({status: 1000});
-					}
+					// 添加新用户
+					connection.query('insert into users(tel,password,nick,create_time) values("' + tel + '","' + md5(password) + '","' + nickname + '", ' + nowStamp + ')', function(createerr, result) {
+						if (createerr) {
+							_release(connection);
+							callback(createerr);
+							return;
+						}
+						connection.commit(function(commiterr) {
+							if (commiterr) {
+								_release(connection);
+								callback({status: 1003, desc: commiterr});
+							}
+							else {
+								connection.release();
+								callback({status: 1000});
+							}
+						});
+					});
 				});
+			});
+		});
+	});
+};
+
+// 创建并发送注册所需的验证码
+var sendRegisterCode = function(tel, callback) {
+
+	var code = _createRandomCode(), nowStamp = Date.now();
+	sql.query('select id from users where tel="' + tel + '"', function(errA, resultA) {
+		if (errA) {
+			callback({status: 1003, desc: errA});
+			return;
+		}
+		var userInfo = resultA[0];
+		if (userInfo) {
+			callback({status: 2001});
+			return;
+		}
+		sql.query('select * from code where tel="' + tel + '" and type="0" order by create_time desc', function(errB, resultB) {
+			if (errB) {
+				callback({status: 1003, desc: errB});
+				return;
+			}
+			var latestCodeInfo = resultB[0];
+			// 1分钟之内只能申请一次验证码
+			if (latestCodeInfo && (nowStamp - latestCodeInfo.create_time < 60000)) {
+				callback({status: 8002});
+				return;
+			}
+			sql.query('insert into code(code,type,tel,create_time) values("' + code + '","0","' + tel + '",' + nowStamp + ')', function(errC, resultC) {
+				if (errC) {
+					callback({status: 1003, desc: errC});
+				}
+				else {
+					callback({status: 1000});
+					sms.sendVerifyCode(tel, code);
+				}
 			});
 		});
 	});
@@ -157,65 +227,10 @@ var updatePassword = function(userId, oldpassword, newpassword, callback) {
 	});
 };
 
-// 获取密保问题(通过用户名)
-var getQuestionsByName = function(username, callback) {
-
-	sql.query('select ques from users where name="' + username + '"', function(err, result) {
-		if (err) {
-			callback({status: 1003, desc: err});
-			return;
-		}
-		var userInfo = result[0];
-		if (!userInfo) {
-			callback({status: 2002});
-			return;
-		}
-		var ques = userInfo.ques;
-		var quesArr = null;
-		if (ques) {
-			var arr = ques.split(',');
-			quesArr = [];
-			for (var i = 0; i < arr.length; i ++) {
-				var str = arr[i];
-				quesArr.push(decodeURIComponent(str));
-			}
-		}
-		callback({status: 1000, ques: quesArr});
-	});
-};
-
-// 获取密保问题(通过userid)
-var getQuestionsById = function(userid, callback) {
-
-
-	sql.query('select ques from users where id=' + userid, function(err, result) {
-		if (err) {
-			callback({status: 1003, desc: err});
-			return;
-		}
-		var userInfo = result[0];
-		if (!userInfo) {
-			callback({status: 2002});
-			return;
-		}
-		var ques = userInfo.ques;
-		var quesArr = null;
-		if (ques) {
-			var arr = ques.split(',');
-			quesArr = [];
-			for (var i = 0; i < arr.length; i ++) {
-				var str = arr[i];
-				quesArr.push(decodeURIComponent(str));
-			}
-		}
-		callback({status: 1000, ques: quesArr});
-	});
-};
-
 // 重置密码
-var resetPassword = function(username, password, answA, answB, answC, callback) {
+var resetPassword = function(tel, code, password, callback) {
 
-	sql.query('select id,answ from users where name="' + username + '"', function(errA, resultA) {
+	sql.query('select id from users where tel="' + tel + '"', function(errA, resultA) {
 		if (errA) {
 			callback({status: 1003, desc: errA});
 			return;
@@ -225,86 +240,202 @@ var resetPassword = function(username, password, answA, answB, answC, callback) 
 			callback({status: 2002});
 			return;
 		}
-		var answ = userInfo.answ;
-		if (answ) {
-			if (md5(answA) + ',' + md5(answB) + ',' + md5(answC) === answ) {
-				sql.query('update users set password="' + md5(password) + '",try_times=0 where id=' + userInfo.id, function(errB, resultB) {
-					if (errB) {
-						callback({status: 1003, desc: errB});
+		var nowStamp = Date.now();
+		sql.trans(function(transerr, conn) {
+			if (transerr) {
+				callback({status: 1003, desc: transerr});
+				return;
+			}
+			conn.query('select id,code from code where tel="' + tel + '" and type="1" and consumed=0 and create_time>' + (nowStamp - 300000) + ' for update', function(errB, resultB) {
+				if (errB) {
+					_release(conn);
+					callback({status: 1003, desc: errB});
+					return;
+				}
+				var codeArr = [];
+				for (var i = 0; i < resultB.length; i ++) {
+					codeArr.push(resultB[i].code);
+				}
+				var codeIndex = codeArr.indexOf(code);
+				if (codeIndex < 0) {
+					_release(conn);
+					callback({status: 8001});
+					return;
+				}
+				var codeInfo = resultB[codeIndex];
+				// 将该验证码置为已消费状态
+				conn.query('update code set consumed=1 where id=' + codeInfo.id, function(errC, resultC) {
+					if (errC) {
+						_release(conn);
+						callback({status: 1003, desc: errC});
+						return;
 					}
-					else {
-						callback({status: 1000});
-					}
+					// 重置密码
+					conn.query('update users set password="' + md5(password) + '",try_times=0 where id=' + userInfo.id, function(errD, resultD) {
+						if (errD) {
+							_release(conn);
+							callback({status: 1003, desc: errD});
+							return;
+						}
+						conn.commit(function(commiterr) {
+							if (commiterr) {
+								_release(conn);
+								callback({status: 1003, desc: commiterr});
+							}
+							else {
+								conn.release();
+								callback({status: 1000});
+							}
+						});
+					});
 				});
-			}
-			else {
-				callback({status: 2006});
-			}
-		}
-		else {
-			callback({status: 2007});
-		}
+			});
+		});
 	});
 };
 
-// 设置密保问题
-var _setProtection = function(userid, ques, answ, reset_trytimes, callback) {
+// 创建并发送重置密码所需的验证码
+var sendResetCode = function(tel, callback) {
 
-	var queryStr = 'update users set ques="' + ques + '",answ="' + answ + '"';
-	if (reset_trytimes) {
-		queryStr = queryStr + ',try_times=0';
-	}
-	queryStr = queryStr + ' where id=' + userid;
-	sql.query(queryStr, function(err, result) {
-		if (err) {
-			callback({status: 1003, desc: err});
-		}
-		else {
-			callback({status: 1000});
-		}
-	});
-};
-var setProtection = function(userid, params, callback) {
-
-	var newQues = encodeURIComponent(params.new_ques_a) + ',' + encodeURIComponent(params.new_ques_b) + ',' + encodeURIComponent(params.new_ques_c);
-	var newAnsw = md5(params.new_answ_a) + ',' + md5(params.new_answ_b) + ',' + md5(params.new_answ_c);
-	sql.query('select password,try_times,ques,answ from users where id=' + userid, function(err, result) {
-		if (err) {
-			callback({status: 1003, desc: err});
+	var code = _createRandomCode(), nowStamp = Date.now();
+	sql.query('select id from users where tel="' + tel + '"', function(errA, resultA) {
+		if (errA) {
+			callback({status: 1003, desc: errA});
 			return;
 		}
-		var userInfo = result[0];
+		var userInfo = resultA[0];
 		if (!userInfo) {
 			callback({status: 2002});
 			return;
 		}
-		// 首次设置
-		if (params.type === '0') {
-			if (userInfo.ques && userInfo.answ) {
-				// 已经设置过密保问题和答案
-				callback({status: 2008});
+		sql.query('select * from code where tel="' + tel + '" and type="1" order by create_time desc', function(errB, resultB) {
+			if (errB) {
+				callback({status: 1003, desc: errB});
+				return;
 			}
-			else {
-				_setProtection(userid, newQues, newAnsw, true, callback);
+			var latestCodeInfo = resultB[0];
+			// 1分钟之内只能申请一次验证码
+			if (latestCodeInfo && (nowStamp - latestCodeInfo.create_time < 60000)) {
+				callback({status: 8002});
+				return;
 			}
-		}
-		// 非首次设置
-		else {
-			if (userInfo.ques && userInfo.answ) {
-				var oldAnsw = md5(params.old_answ_a) + ',' + md5(params.old_answ_b) + ',' + md5(params.old_answ_c);
-				// 验证原密保答案
-				if (oldAnsw === userInfo.answ) {
-					_setProtection(userid, newQues, newAnsw, false, callback);
+			sql.query('insert into code(code,type,tel,create_time) values("' + code + '","1","' + tel + '",' + nowStamp + ')', function(errC, resultC) {
+				if (errC) {
+					callback({status: 1003, desc: errC});
 				}
 				else {
-					callback({status: 2006});
+					callback({status: 1000});
+					sms.sendVerifyCode(tel, code);
 				}
-			}
-			else {
-				// 尚未设置过密保问题和答案
-				callback({status: 2007});
-			}
+			});
+		});
+	});
+};
+
+// 设置支付宝
+var setAlipay = function(userid, alipay, code, callback) {
+
+	sql.query('select tel from users where id=' + userid, function(errA, resultA) {
+		if (errA) {
+			callback({status: 1003, desc: errA});
+			return;
 		}
+		var userInfo = resultA[0];
+		if (!userInfo) {
+			callback({status: 2002});
+			return;
+		}
+		var tel = userInfo.tel;
+		var nowStamp = Date.now();
+		sql.trans(function(transerr, conn) {
+			if (transerr) {
+				callback({status: 1003, desc: transerr});
+				return;
+			}
+			conn.query('select id,code from code where tel="' + tel + '" and type="2" and consumed=0 and create_time>' + (nowStamp - 300000) + ' for update', function(errB, resultB) {
+				if (errB) {
+					_release(conn);
+					callback({status: 1003, desc: errB});
+					return;
+				}
+				var codeArr = [];
+				for (var i = 0; i < resultB.length; i ++) {
+					codeArr.push(resultB[i].code);
+				}
+				var codeIndex = codeArr.indexOf(code);
+				if (codeIndex < 0) {
+					_release(conn);
+					callback({status: 8001});
+					return;
+				}
+				var codeInfo = resultB[codeIndex];
+				// 将该验证码置为已消费状态
+				conn.query('update code set consumed=1 where id=' + codeInfo.id, function(errC, resultC) {
+					if (errC) {
+						_release(conn);
+						callback({status: 1003, desc: errC});
+						return;
+					}
+					// 设置支付宝
+					conn.query('update users set alipay="' + alipay + '" where id=' + userid, function(errD, resultD) {
+						if (errD) {
+							_release(conn);
+							callback({status: 1003, desc: errD});
+							return;
+						}
+						conn.commit(function(commiterr) {
+							if (commiterr) {
+								_release(conn);
+								callback({status: 1003, desc: commiterr});
+							}
+							else {
+								conn.release();
+								callback({status: 1000});
+							}
+						});
+					});
+				});
+			});
+		});
+	});
+};
+
+// 创建并发送绑定支付宝所需的验证码
+var sendAlipayCode = function(userid, callback) {
+
+	var code = _createRandomCode(), nowStamp = Date.now();
+	sql.query('select tel from users where id=' + userid, function(errA, resultA) {
+		if (errA) {
+			callback({status: 1003, desc: errA});
+			return;
+		}
+		var userInfo = resultA[0];
+		if (!userInfo) {
+			callback({status: 2002});
+			return;
+		}
+		var tel = userInfo.tel;
+		sql.query('select * from code where tel="' + tel + '" and type="2" order by create_time desc', function(errB, resultB) {
+			if (errB) {
+				callback({status: 1003, desc: errB});
+				return;
+			}
+			var latestCodeInfo = resultB[0];
+			// 1分钟之内只能申请一次验证码
+			if (latestCodeInfo && (nowStamp - latestCodeInfo.create_time < 60000)) {
+				callback({status: 8002});
+				return;
+			}
+			sql.query('insert into code(code,type,tel,create_time) values("' + code + '","2","' + tel + '",' + nowStamp + ')', function(errC, resultC) {
+				if (errC) {
+					callback({status: 1003, desc: errC});
+				}
+				else {
+					callback({status: 1000});
+					sms.sendVerifyCode(tel, code);
+				}
+			});
+		});
 	});
 };
 
@@ -562,106 +693,15 @@ var createConfessedOrder = function(type, quota, userid, gameid, callback) {
 	});
 };
 
-// 绑定支付宝(不验证密保)
-var setAlipayWithoutProtection = function(userid, alipay, callback) {
-
-	sql.query('select * from users where id=' + userid, function(errA, resultA) {
-		if (errA) {
-			callback({status: 1003, desc: errA});
-			return;
-		}
-		var userInfo = resultA[0];
-		if (!userInfo) {
-			callback({status: 2002});
-			return;
-		}
-		if (userInfo.ques && userInfo.answ) {
-			callback({status: 2008});
-			return;
-		}
-		sql.query('update users set alipay="' + alipay + '" where id=' + userid, function(errB, resultB) {
-			if (errB) {
-				callback({status: 1003, desc: errB});
-				return;
-			}
-			callback({status: 1000});
-		});
-	});
-};
-
-// 绑定支付宝(验证密保)
-var setAlipayWithProtection = function(userid, alipay, answA, answB, answC, callback) {
-
-	sql.query('select * from users where id=' + userid, function(errA, resultA) {
-		if (errA) {
-			callback({status: 1003, desc: errA});
-			return;
-		}
-		var userInfo = resultA[0];
-		if (!userInfo) {
-			callback({status: 2002});
-			return;
-		}
-		var ques = userInfo.ques, answ = userInfo.answ;
-		if (ques && answ) {
-			if (md5(answA) + ',' + md5(answB) + ',' + md5(answC) !== answ) {
-				callback({status: 2006});
-				return;
-			}
-			sql.query('update users set alipay="' + alipay + '" where id=' + userid, function(errB, resultB) {
-				if (errB) {
-					callback({status: 1003, desc: errB});
-					return;
-				}
-				callback({status: 1000});
-			});
-		}
-		else {
-			callback({status: 2007});
-			return;
-		}
-	});
-};
-
 // 提现
-// 每日提现次数限制为2次，若用户提现次数已达到2次并且上上次提现时间在今天(0时区)，则不可再提现
-var _pickupTimeValid = function(pickupStampsStr) {
-	if (pickupStampsStr) {
-		var pickupStamps = pickupStampsStr.split(',');
-		if (pickupStamps.length >= 2) {
-			// 上上次提现时间
-			var llastPickupStamp = parseInt(pickupStamps[0]);
-			// 今日00:00:00
-			var today = new Date();
-			today.setHours(0);
-			today.setMinutes(0);
-			today.setSeconds(0);
-			if (llastPickupStamp >= today.getTime()) {
-				return false;
-			}
-		}
-	}
-	return true;
-};
-// 更新最新一次的提现时间
-var _updatePickupTime = function(pickupStampsStr) {
-	var nowStamp = Date.now();
-	if (pickupStampsStr) {
-		var pickupStamps = pickupStampsStr.split(',');
-		return pickupStamps[pickupStamps.length - 1] + ',' + nowStamp;
-	}
-	else {
-		return '' + nowStamp;
-	}
-};
-var pickup = function(userid, quota, callback) {
+var pickup = function(userid, quota, alipay, callback) {
 
 	sql.trans(function(transerr, conn) {
 		if (transerr) {
 			callback({status: 1003, desc: transerr});
 			return;
 		}
-		conn.query('select balance,alipay,last_pickup_time from users where id=' + userid + ' for update', function(errA, resultA) {
+		conn.query('select balance,last_pickup_time from users where id=' + userid + ' for update', function(errA, resultA) {
 			if (errA) {
 				_release(conn);
 				callback({status: 1003, desc: errA});
@@ -674,20 +714,24 @@ var pickup = function(userid, quota, callback) {
 				callback({status: 2002});
 				return;
 			}
-			// 验证今日提现次数是否已达上限(每日2次)
-			var lastPickupStr = userInfo.last_pickup_time;
-			if (!_pickupTimeValid(lastPickupStr)) {
+
+			// 验证今日提现次数是否已达上限(每日1次)
+			var lastPickupTime = userInfo.last_pickup_time;
+			var timeOffset = 8 - timeZone, today = new Date();
+			// 北京时间
+			today.setHours(today.getHours() + timeOffset);
+			// 今日0点
+			today.setHours(0);
+			today.setMinutes(0);
+			today.setSeconds(0);
+			today.setHours(today.getHours() - timeOffset);
+			// 如果上次提现时间比北京时间今日0点晚，则不允许提现
+			if (lastPickupTime >= today.getTime()) {
 				_release(conn);
-				callback({status: 3004})
+				callback({status: 3004});
 				return;
 			}
-			// 未绑定支付宝
-			var alipay = userInfo.alipay;
-			if (!alipay) {
-				_release(conn);
-				callback({status: 6001});
-				return;
-			}
+
 			var balance = userInfo.balance;
 			// 手续费
 			var fees = Math.ceil(quota * 2 / 100);
@@ -824,11 +868,12 @@ module.exports = {
 	login: login,
 	getUserInfo: getUserInfo,
 	register: register,
+	sendRegisterCode: sendRegisterCode,
 	updatePassword: updatePassword,
-	getQuestionsByName: getQuestionsByName,
-	getQuestionsById: getQuestionsById,
 	resetPassword: resetPassword,
-	setProtection: setProtection,
+	sendResetCode: sendResetCode,
+	setAlipay: setAlipay,
+	sendAlipayCode: sendAlipayCode,
 	createRecharge: createRecharge,
 	getRechargeHistoryByUser: getRechargeHistoryByUser,
 	getRechargeInfo: getRechargeInfo,
@@ -837,8 +882,6 @@ module.exports = {
 	getConfessedGameHistory: getConfessedGameHistory,
 	getOrderHistoryByUser: getOrderHistoryByUser,
 	createConfessedOrder: createConfessedOrder,
-	setAlipayWithoutProtection: setAlipayWithoutProtection,
-	setAlipayWithProtection: setAlipayWithProtection,
 	pickup: pickup,
 	getPickupHistoryByUser: getPickupHistoryByUser,
 	cancelPickup: cancelPickup

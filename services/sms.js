@@ -5,10 +5,10 @@ var SMSClient = require('@alicloud/sms-sdk');
 var client = new SMSClient({accessKeyId: SMSCONFIG.ACCESSKEYID, secretAccessKey: SMSCONFIG.ACCESSKEY});
 
 // 发送短信
-var _sendMessage = function(phone, template, param) {
+var _sendMessage = function(tel, template, param) {
 
 	var options = {
-		PhoneNumbers: phone.toString(),
+		PhoneNumbers: tel.toString(),
 		SignName: SMSCONFIG.SIGNNAME,
 		TemplateCode: template,
 		TemplateParam: JSON.stringify(param)
@@ -18,21 +18,25 @@ var _sendMessage = function(phone, template, param) {
 	.sendSMS(options)
 	.then(
 		// 成功
-		function(res) {},
+		function(res) {
+			if (res.Code !== 'OK') {
+				console.log({status: 7002, desc: res});
+			}
+		},
 		// 失败
-		function (err) {
-			console.log('[SMS] error', err);
+		function(err) {
+			console.log({status: 7001, desc: err});
 		}
 	);
 };
 
-// 注册验证码
-var sendRegisterCode = function(phone, code) {
+// 验证码
+var sendVerifyCode = function(tel, code) {
 
-	_sendMessage(phone, 'SMS_134775129', {code: code.toString()});
+	_sendMessage(tel, 'SMS_134775129', {code: code.toString()});
 };
 
 module.exports = {
 
-	sendRegisterCode: sendRegisterCode
+	sendVerifyCode: sendVerifyCode
 };
