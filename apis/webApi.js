@@ -186,7 +186,7 @@ var sendRegisterCode = function(tel, callback) {
 				}
 				else {
 					callback({status: 1000});
-					sms.sendVerifyCode(tel, code);
+					sms.sendVerifyCode(tel, code, 0);
 				}
 			});
 		});
@@ -325,7 +325,7 @@ var sendResetCode = function(tel, callback) {
 				}
 				else {
 					callback({status: 1000});
-					sms.sendVerifyCode(tel, code);
+					sms.sendVerifyCode(tel, code, 1);
 				}
 			});
 		});
@@ -432,7 +432,7 @@ var sendAlipayCode = function(userid, callback) {
 				}
 				else {
 					callback({status: 1000});
-					sms.sendVerifyCode(tel, code);
+					sms.sendVerifyCode(tel, code, 2);
 				}
 			});
 		});

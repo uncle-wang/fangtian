@@ -30,10 +30,23 @@ var _sendMessage = function(tel, template, param) {
 	);
 };
 
-// 验证码
-var sendVerifyCode = function(tel, code) {
+// 短信模板列表
+var templates = [
+	// 注册
+	'SMS_136165203',
+	// 重置密码
+	'SMS_136160213',
+	// 绑定支付宝
+	'SMS_136170250',
+	// 管理员登录
+	'SMS_136090047'
+];
 
-	_sendMessage(tel, 'SMS_134775129', {code: code.toString()});
+// 发送验证码
+var sendVerifyCode = function(tel, code, type) {
+
+	var templateId = templates[type];
+	_sendMessage(tel, templateId, {code: code.toString()});
 };
 
 module.exports = {
