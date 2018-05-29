@@ -71,7 +71,7 @@ var login = function(tel, password, callback) {
 // 获取用户信息
 var getUserInfo = function(userId, callback) {
 
-	sql.query('select tel,nick,balance,alipay from users where id=' + userId, function(err, result) {
+	sql.query('select tel,balance,alipay from users where id=' + userId, function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
@@ -86,7 +86,7 @@ var getUserInfo = function(userId, callback) {
 };
 
 // 注册 1-成功 0-数据库异常
-var register = function(tel, code, password, nickname, callback) {
+var register = function(tel, code, password, callback) {
 
 	var nowStamp = Date.now();
 	sql.trans(function(transerr, connection) {
@@ -132,7 +132,7 @@ var register = function(tel, code, password, nickname, callback) {
 						return;
 					}
 					// 添加新用户
-					connection.query('insert into users(tel,password,nick,create_time) values("' + tel + '","' + md5(password) + '","' + nickname + '", ' + nowStamp + ')', function(createerr, result) {
+					connection.query('insert into users(tel,password,create_time) values("' + tel + '","' + md5(password) + '",' + nowStamp + ')', function(createerr, result) {
 						if (createerr) {
 							_release(connection);
 							callback(createerr);

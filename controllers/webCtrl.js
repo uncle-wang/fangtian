@@ -73,15 +73,14 @@ module.exports = function(app) {
 		var tel = req.query.tel;
 		var code = req.query.code;
 		var password = req.query.password;
-		var nickname = req.query.nickname;
 
-		if (tel && code && password && nickname) {
-			api.register(tel, code, password, nickname, function(resultMap) {
+		if (tel && code && password) {
+			api.register(tel, code, password, function(resultMap) {
 				res.send(resultMap);
 			});
 		}
 		else {
-			res.send({status: 1002, desc: 'tel, code, password, nickname required'});
+			res.send({status: 1002, desc: 'tel, code, password required'});
 		}
 	});
 
