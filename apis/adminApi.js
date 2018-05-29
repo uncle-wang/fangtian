@@ -157,10 +157,10 @@ var updateUserBalance = function(gameid, callback) {
 	});
 };
 
-// 判断小数点后第一位的奇偶性
+// 判断最后一位整数的奇偶性
 var __getParity = function(num) {
 
-	var n = Math.floor(num * 10);
+	var n = Math.floor(num);
 	return n % 2;
 };
 // 更新游戏、订单结果
