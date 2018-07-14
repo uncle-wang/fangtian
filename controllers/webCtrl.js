@@ -353,8 +353,10 @@ module.exports = function(app) {
 			res.send({status: 1001});
 			return;
 		}
-		api.createConfessedOrder(type, quota, userId, gameId, function(resultMap) {
-			res.send(resultMap);
+		api.createConfessedOrder(type, quota, userId, gameId).then(() => {
+			res.send({status: 1000});
+		}).catch(err => {
+			res.send(err);
 		});
 	});
 

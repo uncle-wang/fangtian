@@ -1,7 +1,7 @@
 // md5
 var md5 = require('md5');
 // 加载sql模块
-var sql = require('./../services/sql');
+const {pool, trans, tables, transs} = require('./../sql');
 // 短信服务模块
 var sms = require('./../services/sms');
 // 时区
@@ -16,7 +16,7 @@ var _release = function(connection) {
 // 密码连续错误次数+1
 var _setTryTimes = function(userid, times, callback) {
 
-	sql.query('update users set try_times=' + times + ' where id=' + userid, function(errB, resultB) {
+	pool.query('update users set try_times=' + times + ' where id=' + userid, function(errB, resultB) {
 		if (errB) {
 			callback({status: 1003, desc: errB});
 			return;
@@ -38,40 +38,37 @@ var _createRandomCode = function() {
 // 登陆 1-成功 0-用户不存在 2-密码错误
 var login = function(tel, password, callback) {
 
-	sql.query('select * from users where tel="' + tel + '"', function(errA, resultA) {
-		if (errA) {
-			callback({status: 1003, desc: errA});
-			return;
-		}
-		var userInfo = resultA[0];
-		if (!userInfo) {
-			callback({status: 2002});
-			return;
-		}
-		// 密码连续错误5次
-		var tryTimes = userInfo.try_times;
-		if (tryTimes >= 5) {
-			callback({status: 2009});
-			return;
-		}
-		if (userInfo.password !== md5(password)) {
-			_setTryTimes(userInfo.id, tryTimes + 1, callback);
-			return;
-		}
-		sql.query('update users set try_times=0 where id=' + userInfo.id, function(errB, resultB) {
-			if (errB) {
-				callback({status: 1003, desc: errB});
+	tables.users.getUserByTel(pool, tel).then(userInfo => {
+		return new Promise((resolve, reject) => {
+			// 密码连续错误5次
+			var tryTimes = userInfo.try_times;
+			if (tryTimes >= 5) {
+				reject({status: 2009});
 				return;
 			}
-			callback({status: 1000, userInfo: userInfo});
+			// 密码错误
+			if (userInfo.password !== md5(password)) {
+				var newTryTimes = tryTimes + 1;
+				return tables.users.setTryTimes(pool, userInfo.id, newTryTimes).then(() => {
+					reject({status: 2005, wrongTimes: newTryTimes})
+				});
+			}
+			// 成功
+			return tables.users.setTryTimes(pool, userInfo.id, 0).then(() => {
+				resolve(userInfo);
+			});
 		});
+	}).then(userInfo => {
+		callback({status: 1000, userInfo});
+	}).catch(err => {
+		callback(err);
 	});
 };
 
 // 获取用户信息
 var getUserInfo = function(userId, callback) {
 
-	sql.query('select tel,balance,alipay from users where id=' + userId, function(err, result) {
+	pool.query('select tel,balance,alipay from users where id=' + userId, function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
@@ -89,7 +86,7 @@ var getUserInfo = function(userId, callback) {
 var register = function(tel, code, password, callback) {
 
 	var nowStamp = Date.now();
-	sql.trans(function(transerr, connection) {
+	trans(function(transerr, connection) {
 		if (transerr) {
 			callback({status: 1003, desc: transerr});
 			return;
@@ -159,7 +156,7 @@ var register = function(tel, code, password, callback) {
 var sendRegisterCode = function(tel, callback) {
 
 	var code = _createRandomCode(), nowStamp = Date.now();
-	sql.query('select id from users where tel="' + tel + '"', function(errA, resultA) {
+	pool.query('select id from users where tel="' + tel + '"', function(errA, resultA) {
 		if (errA) {
 			callback({status: 1003, desc: errA});
 			return;
@@ -169,7 +166,7 @@ var sendRegisterCode = function(tel, callback) {
 			callback({status: 2001});
 			return;
 		}
-		sql.query('select * from code where tel="' + tel + '" and type="0" order by create_time desc', function(errB, resultB) {
+		pool.query('select * from code where tel="' + tel + '" and type="0" order by create_time desc', function(errB, resultB) {
 			if (errB) {
 				callback({status: 1003, desc: errB});
 				return;
@@ -180,7 +177,7 @@ var sendRegisterCode = function(tel, callback) {
 				callback({status: 8002});
 				return;
 			}
-			sql.query('insert into code(code,type,tel,create_time) values("' + code + '","0","' + tel + '",' + nowStamp + ')', function(errC, resultC) {
+			pool.query('insert into code(code,type,tel,create_time) values("' + code + '","0","' + tel + '",' + nowStamp + ')', function(errC, resultC) {
 				if (errC) {
 					callback({status: 1003, desc: errC});
 				}
@@ -196,7 +193,7 @@ var sendRegisterCode = function(tel, callback) {
 // 修改密码
 var updatePassword = function(userId, oldpassword, newpassword, callback) {
 
-	sql.query('select password,try_times from users where id=' + userId, function(errA, resultA) {
+	pool.query('select password,try_times from users where id=' + userId, function(errA, resultA) {
 		if (errA) {
 			callback({status: 1003, desc: errA});
 			return;
@@ -217,7 +214,7 @@ var updatePassword = function(userId, oldpassword, newpassword, callback) {
 			_setTryTimes(userId, tryTimes + 1, callback);
 			return;
 		}
-		sql.query('update users set password="' + md5(newpassword) + '",try_times=0 where id="' + userId + '"', function(errB, resultB) {
+		pool.query('update users set password="' + md5(newpassword) + '",try_times=0 where id="' + userId + '"', function(errB, resultB) {
 			if (errB) {
 				callback({status: 1003, desc: errB});
 				return;
@@ -230,7 +227,7 @@ var updatePassword = function(userId, oldpassword, newpassword, callback) {
 // 重置密码
 var resetPassword = function(tel, code, password, callback) {
 
-	sql.query('select id from users where tel="' + tel + '"', function(errA, resultA) {
+	pool.query('select id from users where tel="' + tel + '"', function(errA, resultA) {
 		if (errA) {
 			callback({status: 1003, desc: errA});
 			return;
@@ -241,7 +238,7 @@ var resetPassword = function(tel, code, password, callback) {
 			return;
 		}
 		var nowStamp = Date.now();
-		sql.trans(function(transerr, conn) {
+		trans(function(transerr, conn) {
 			if (transerr) {
 				callback({status: 1003, desc: transerr});
 				return;
@@ -298,7 +295,7 @@ var resetPassword = function(tel, code, password, callback) {
 var sendResetCode = function(tel, callback) {
 
 	var code = _createRandomCode(), nowStamp = Date.now();
-	sql.query('select id from users where tel="' + tel + '"', function(errA, resultA) {
+	pool.query('select id from users where tel="' + tel + '"', function(errA, resultA) {
 		if (errA) {
 			callback({status: 1003, desc: errA});
 			return;
@@ -308,7 +305,7 @@ var sendResetCode = function(tel, callback) {
 			callback({status: 2002});
 			return;
 		}
-		sql.query('select * from code where tel="' + tel + '" and type="1" order by create_time desc', function(errB, resultB) {
+		pool.query('select * from code where tel="' + tel + '" and type="1" order by create_time desc', function(errB, resultB) {
 			if (errB) {
 				callback({status: 1003, desc: errB});
 				return;
@@ -319,7 +316,7 @@ var sendResetCode = function(tel, callback) {
 				callback({status: 8002});
 				return;
 			}
-			sql.query('insert into code(code,type,tel,create_time) values("' + code + '","1","' + tel + '",' + nowStamp + ')', function(errC, resultC) {
+			pool.query('insert into code(code,type,tel,create_time) values("' + code + '","1","' + tel + '",' + nowStamp + ')', function(errC, resultC) {
 				if (errC) {
 					callback({status: 1003, desc: errC});
 				}
@@ -335,7 +332,7 @@ var sendResetCode = function(tel, callback) {
 // 设置支付宝
 var setAlipay = function(userid, alipay, code, callback) {
 
-	sql.query('select tel from users where id=' + userid, function(errA, resultA) {
+	pool.query('select tel from users where id=' + userid, function(errA, resultA) {
 		if (errA) {
 			callback({status: 1003, desc: errA});
 			return;
@@ -347,7 +344,7 @@ var setAlipay = function(userid, alipay, code, callback) {
 		}
 		var tel = userInfo.tel;
 		var nowStamp = Date.now();
-		sql.trans(function(transerr, conn) {
+		trans(function(transerr, conn) {
 			if (transerr) {
 				callback({status: 1003, desc: transerr});
 				return;
@@ -404,7 +401,7 @@ var setAlipay = function(userid, alipay, code, callback) {
 var sendAlipayCode = function(userid, callback) {
 
 	var code = _createRandomCode(), nowStamp = Date.now();
-	sql.query('select tel from users where id=' + userid, function(errA, resultA) {
+	pool.query('select tel from users where id=' + userid, function(errA, resultA) {
 		if (errA) {
 			callback({status: 1003, desc: errA});
 			return;
@@ -415,7 +412,7 @@ var sendAlipayCode = function(userid, callback) {
 			return;
 		}
 		var tel = userInfo.tel;
-		sql.query('select * from code where tel="' + tel + '" and type="2" order by create_time desc', function(errB, resultB) {
+		pool.query('select * from code where tel="' + tel + '" and type="2" order by create_time desc', function(errB, resultB) {
 			if (errB) {
 				callback({status: 1003, desc: errB});
 				return;
@@ -426,7 +423,7 @@ var sendAlipayCode = function(userid, callback) {
 				callback({status: 8002});
 				return;
 			}
-			sql.query('insert into code(code,type,tel,create_time) values("' + code + '","2","' + tel + '",' + nowStamp + ')', function(errC, resultC) {
+			pool.query('insert into code(code,type,tel,create_time) values("' + code + '","2","' + tel + '",' + nowStamp + ')', function(errC, resultC) {
 				if (errC) {
 					callback({status: 1003, desc: errC});
 				}
@@ -442,7 +439,7 @@ var sendAlipayCode = function(userid, callback) {
 // 创建充值订单
 var createRecharge = function(userid, quota, callback) {
 
-	sql.query('insert into recharge(user,quota,create_time) values(' + userid + ',' + (quota * 6000) + ',' + Date.now() + ')', function(err, result) {
+	pool.query('insert into recharge(user,quota,create_time) values(' + userid + ',' + (quota * 6000) + ',' + Date.now() + ')', function(err, result) {
 		if (err) {
 			callback({status: 0, error: err});
 			return;
@@ -454,7 +451,7 @@ var createRecharge = function(userid, quota, callback) {
 // 获取充值记录
 var getRechargeHistoryByUser = function(userid, callback) {
 
-	sql.query('select * from recharge where user=' + userid + ' order by create_time desc', function(err, result) {
+	pool.query('select * from recharge where user=' + userid + ' order by create_time desc', function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
@@ -466,7 +463,7 @@ var getRechargeHistoryByUser = function(userid, callback) {
 // 查询充值订单信息
 var getRechargeInfo = function(rechargeId, callback) {
 
-	sql.query('select * from recharge where id=' + rechargeId, function(err, result) {
+	pool.query('select * from recharge where id=' + rechargeId, function(err, result) {
 		if (err) {
 			callback({status: 0, error: err});
 			return;
@@ -482,7 +479,7 @@ var getRechargeInfo = function(rechargeId, callback) {
 // 支付充值订单
 var payRecharge = function(rechargeId, callback) {
 
-	sql.trans(function(transerr, conn) {
+	trans(function(transerr, conn) {
 
 		if (transerr) {
 			callback({status: 0, error: transerr});
@@ -553,7 +550,7 @@ var payRecharge = function(rechargeId, callback) {
 // 获取最近一期公开游戏局
 var getLatestConfessedGame = function(callback) {
 
-	sql.query('select * from confessed_games order by id desc', function(err, result) {
+	pool.query('select * from confessed_games order by id desc', function(err, result) {
 
 		if (err) {
 			callback({status: 1003, desc: err});
@@ -573,7 +570,7 @@ var getLatestConfessedGame = function(callback) {
 // 获取往期记录
 var getConfessedGameHistory = function(callback) {
 
-	sql.query('select * from confessed_games where status="1" order by create_time desc', function(err, result) {
+	pool.query('select * from confessed_games where status="1" order by create_time desc', function(err, result) {
 
 		if (err) {
 			callback({status: 1003, desc: err});
@@ -587,7 +584,7 @@ var getConfessedGameHistory = function(callback) {
 // 查询历史订单
 var getOrderHistoryByUser = function(userid, callback) {
 
-	sql.query('select * from confessed_orders where user=' + userid + ' order by create_time desc', function(err, result) {
+	pool.query('select * from confessed_orders where user=' + userid + ' order by create_time desc', function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
@@ -597,106 +594,45 @@ var getOrderHistoryByUser = function(userid, callback) {
 };
 
 // 公开局下单 0-数据库错误,1-成功,2-游戏id不存在,3-已封盘,4-余额不足或账号异常
-var createConfessedOrder = function(type, quota, userid, gameid, callback) {
+const createConfessedOrder = async (type, quota, userid, gameid) => {
 
-	sql.trans(function(transerr, conn) {
+	const conn = await transs.getConnection();
 
-		if (transerr) {
-			callback({status: 1003, desc: transerr});
-			return;
-		}
-		// 查询当期游戏状态
-		conn.query('select * from confessed_games where id="' + gameid + '" for update', function(gameerr, gameResult) {
+	// 获取比赛信息及用户余额
+	const [gameInfo, balance] = await Promise.all([
+		tables.games.getOpenGameById(conn, gameid),
+		tables.users.getBalance(conn, userid)
+	]);
 
-			if (gameerr) {
-				_release(conn);
-				callback({status: 1003, desc: gameerr});
-				return;
-			}
-			// 期号不存在
-			if (gameResult.length <= 0) {
-				_release(conn);
-				callback({status: 4001});
-				return;
-			}
-			// 当期游戏状态不匹配
-			var gameInfo = gameResult[0];
-			if (gameInfo.status !== '0') {
-				_release(conn);
-				callback({status: 4002});
-				return;
-			}
-			// 查询用户余额
-			conn.query('select balance from users where id=' + userid + ' for update', function(usererr, userResult) {
-				if (usererr) {
-					_release(conn);
-					callback({status: 1003, desc: usererr});
-					return;
-				}
-				// 账号不存在
-				if (userResult.length <= 0) {
-					_release(conn);
-					callback({status: 2002});
-					return;
-				}
-				// 余额不足
-				var newBalance = userResult[0].balance - quota;
-				if (newBalance < 0) {
-					_release(conn);
-					callback({status: 2003});
-					return;
-				}
-				// 扣款
-				conn.query('update users set balance=' + newBalance + ' where id=' + userid, function(balerr, balResult) {
-					if (balerr) {
-						_release(conn);
-						callback({status: 1003, desc: balerr});
-						return;
-					}
-					// 创建订单
-					conn.query('insert into confessed_orders(type,user,game_id,amount,create_time) values(' + type + ',' + userid + ',"' + gameid + '",' + quota + ',' + Date.now() + ')', function(ordererr, orderResult) {
-						if (ordererr) {
-							_release(conn);
-							callback({status: 1003, desc: ordererr});
-							return;
-						}
-						// 更新本场数据
-						var columnName, value;
-						if (type === '0') {
-							columnName = 'even_amount';
-						}
-						else {
-							columnName = 'odd_amount';
-						}
-						value = gameInfo[columnName] + quota;
-						conn.query('update confessed_games set ' + columnName + '=' + value + ' where id=' + gameid, function(amounterr, amountResult) {
-							if (amounterr) {
-								_release(conn);
-								callback({status: 1003, desc: amounterr});
-								return;
-							}
-							conn.commit(function(commiterr) {
-								if (commiterr) {
-									_release(conn);
-									callback({status: 1003, desc: commiterr});
-								}
-								else {
-									conn.release();
-									callback({status: 1000});
-								}
-							});
-						});
-					});
-				});
-			});
-		});
-	});
+	const newBalance = balance - quota;
+	// 余额不足
+	if (newBalance < 0) {
+		return Promise.reject({status: 2003});
+	}
+
+	// 扣款
+	await tables.users.setBalance(conn, userid, newBalance);
+	// 创建订单
+	await tables.orders.insert(conn, type, userid, gameid, quota);
+	// 更新游戏总投注金额
+	let columnName, value;
+	if (type === '0') {
+		columnName = 'even_amount';
+	}
+	else {
+		columnName = 'odd_amount';
+	}
+	value = gameInfo[columnName] + quota;
+	await tables.games.updateAmount(conn, columnName, value, gameid);
+
+	// 提交事务
+	return transs.commit(conn);
 };
 
 // 提现
 var pickup = function(userid, quota, alipay, callback) {
 
-	sql.trans(function(transerr, conn) {
+	trans(function(transerr, conn) {
 		if (transerr) {
 			callback({status: 1003, desc: transerr});
 			return;
@@ -776,7 +712,7 @@ var pickup = function(userid, quota, alipay, callback) {
 // 获取提现记录
 var getPickupHistoryByUser = function(userid, callback) {
 
-	sql.query('select * from pickup where user=' + userid + ' order by create_time desc', function(err, result) {
+	pool.query('select * from pickup where user=' + userid + ' order by create_time desc', function(err, result) {
 		if (err) {
 			callback({status: 1003, desc: err});
 			return;
@@ -788,7 +724,7 @@ var getPickupHistoryByUser = function(userid, callback) {
 // 取消提现订单
 var cancelPickup = function(userid, pickupid, callback) {
 
-	sql.trans(function(transerr, conn) {
+	trans(function(transerr, conn) {
 		if (transerr) {
 			callback({status: 1003, desc: transerr});
 			return;
