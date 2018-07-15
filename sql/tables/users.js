@@ -24,8 +24,56 @@ const methods = {
 			});
 		});
 	},
+	// 判断手机号是否被注册
+	telRegistered: (conn, tel) => {
+
+		const selector = 'select id from users where tel="' + tel + '"';
+		return query(conn, selector).then(result => {
+			return new Promise((resolve, reject) => {
+				const [userInfo] = result;
+				if (userInfo) {
+					resolve(true);
+				}
+				else {
+					resolve(false);
+				}
+			});
+		});
+	},
+	// 手机号可以被注册
+	telRegisterAvailable: (conn, tel) => {
+
+		const selector = 'select id from users where tel="' + tel + '" for update';
+		return query(conn, selector).then(result => {
+			return new Promise((resolve, reject) => {
+				const [userInfo] = result;
+				if (userInfo) {
+					resolve(false);
+				}
+				else {
+					resolve(true);
+				}
+			});
+		});
+	},
+	// 根据id获取用户信息
+	getUserById: (conn, id) => {
+
+		const selector = 'select tel,balance,alipay from users where id=' + id;
+		return query(conn, selector).then(result => {
+			return new Promise((resolve, reject) => {
+				const [userInfo] = result;
+				if (userInfo) {
+					resolve(userInfo);
+				}
+				else {
+					reject({status: 2002});
+				}
+			});
+		});
+	},
 	// 查询用户余额并等待编辑
-	getBalance: (conn, userid) => {
+	getBalanceForUpdate: (conn, userid) => {
 
 		const selector = 'select balance from users where id=' + userid + ' for update';
 		return query(conn, selector).then(result => {
@@ -44,6 +92,35 @@ const methods = {
 	setBalance: (conn, userid, balance) => {
 
 		const selector = 'update users set balance=' + balance + ' where id=' + userid;
+		return query(conn, selector);
+	},
+	// 添加新用户
+	insert: (conn, tel, password) => {
+
+		const nowStamp = Date.now();
+		const selector = 'insert into users(tel,password,create_time) values("' + tel + '","' + password + '",' + nowStamp + ')';
+		return query(conn, selector);
+	},
+	// 根据id获取用户密码和try_times
+	getPwdAndTrytimesById: (conn, id) => {
+
+		const selector = 'select password,try_times from users where id=' + id;
+		return query(conn, selector).then(result => {
+			return new Promise((resolve, reject) => {
+				const [userInfo] = result;
+				if (userInfo) {
+					resolve(userInfo);
+				}
+				else {
+					reject({status: 2002});
+				}
+			});
+		});
+	},
+	// 修改密码
+	updatePassword: (conn, id, password) => {
+
+		const selector = 'update users set password="' + password + '",try_times=0 where id="' + id + '"';
 		return query(conn, selector);
 	},
 };

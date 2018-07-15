@@ -17,16 +17,12 @@ module.exports = function(app) {
 		var tel = req.query.tel;
 		var password = req.query.password;
 		if (tel && password) {
-			api.login(tel, password, function(resultMap) {
-				if (resultMap.status === 1000) {
-					var userInfo = resultMap.userInfo;
-					req.session.userid = userInfo.id;
-					req.session.tel = userInfo.tel;
-					res.send({status: 1000});
-				}
-				else {
-					res.send(resultMap);
-				}
+			api.login(tel, password).then(userInfo => {
+				req.session.userid = userInfo.id;
+				req.session.tel = userInfo.tel;
+				res.send({status: 1000});
+			}).catch(err => {
+				res.send(err);
 			});
 		}
 		else {
@@ -58,8 +54,10 @@ module.exports = function(app) {
 
 		var userId = req.session.userid;
 		if (userId) {
-			api.getUserInfo(userId, function(resultMap) {
-				res.send(resultMap);
+			api.getUserInfo(userId).then(userInfo => {
+				res.send({status: 1000, userInfo});
+			}).catch(err => {
+				res.send(err);
 			});
 		}
 		else {
@@ -75,8 +73,10 @@ module.exports = function(app) {
 		var password = req.query.password;
 
 		if (tel && code && password) {
-			api.register(tel, code, password, function(resultMap) {
-				res.send(resultMap);
+			api.register(tel, code, password).then(() => {
+				res.send({status: 1000});
+			}).catch(err => {
+				res.send(err);
 			});
 		}
 		else {
@@ -91,8 +91,10 @@ module.exports = function(app) {
 		var reg = /^1\d{10}$/;
 		if (tel) {
 			if (reg.test(tel)) {
-				api.sendRegisterCode(tel, function(resultMap) {
-					res.send(resultMap);
+				api.sendRegisterCode(tel).then(() => {
+					res.send({status: 1000});
+				}).catch(err => {
+					res.send(err);
 				});
 			}
 			else {
@@ -112,11 +114,11 @@ module.exports = function(app) {
 			var oldpassword = req.query.oldpassword;
 			var newpassword = req.query.newpassword;
 			if (oldpassword && newpassword) {
-				api.updatePassword(userId, oldpassword, newpassword, function(resultMap) {
-					if (resultMap.status === 1000) {
-						req.session.destroy();
-					}
-					res.send(resultMap);
+				api.updatePassword(userId, oldpassword, newpassword).then(() => {
+					req.session.destroy();
+					res.send({status: 1000});
+				}).catch(err => {
+					res.send(err);
 				});
 			}
 			else {
@@ -135,8 +137,10 @@ module.exports = function(app) {
 		var code = req.query.code;
 		var password = req.query.password;
 		if (tel && code && password) {
-			api.resetPassword(tel, code, password, function(resultMap) {
-				res.send(resultMap);
+			api.resetPassword(tel, code, password).then(() => {
+				res.send({status: 1000});
+			}).catch(err => {
+				res.send(err);
 			});
 		}
 		else {
@@ -151,8 +155,10 @@ module.exports = function(app) {
 		var reg = /^1\d{10}$/;
 		if (tel) {
 			if (reg.test(tel)) {
-				api.sendResetCode(tel, function(resultMap) {
-					res.send(resultMap);
+				api.sendResetCode(tel).then(() => {
+					res.send({status: 1000});
+				}).catch(err => {
+					res.send(err);
 				});
 			}
 			else {

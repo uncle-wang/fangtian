@@ -1,13 +1,13 @@
 // md5
-var md5 = require('md5');
+const md5 = require('md5');
 // 加载sql模块
 const {pool, trans, tables, transs} = require('./../sql');
 // 短信服务模块
-var sms = require('./../services/sms');
+const sms = require('./../services/sms');
 // 时区
-var timeZone = require('./../config').TIMEZONE;
+const timeZone = require('./../config').TIMEZONE;
 
-var _release = function(connection) {
+const _release = connection => {
 
 	connection.rollback && connection.rollback();
 	connection.release && connection.release();
@@ -26,7 +26,7 @@ var _setTryTimes = function(userid, times, callback) {
 };
 
 // 创建6位数字的验证码
-var _createRandomCode = function() {
+const _createRandomCode = () => {
 
 	var s = '';
 	for (var i = 0; i < 6; i ++) {
@@ -36,297 +36,122 @@ var _createRandomCode = function() {
 };
 
 // 登陆 1-成功 0-用户不存在 2-密码错误
-var login = function(tel, password, callback) {
+const login = async (tel, password) => {
 
-	tables.users.getUserByTel(pool, tel).then(userInfo => {
-		return new Promise((resolve, reject) => {
-			// 密码连续错误5次
-			var tryTimes = userInfo.try_times;
-			if (tryTimes >= 5) {
-				reject({status: 2009});
-				return;
-			}
-			// 密码错误
-			if (userInfo.password !== md5(password)) {
-				var newTryTimes = tryTimes + 1;
-				return tables.users.setTryTimes(pool, userInfo.id, newTryTimes).then(() => {
-					reject({status: 2005, wrongTimes: newTryTimes})
-				});
-			}
-			// 成功
-			return tables.users.setTryTimes(pool, userInfo.id, 0).then(() => {
-				resolve(userInfo);
-			});
-		});
-	}).then(userInfo => {
-		callback({status: 1000, userInfo});
-	}).catch(err => {
-		callback(err);
-	});
+	const userInfo = await tables.users.getUserByTel(pool, tel);
+	// 密码连续错误5次
+	const tryTimes = userInfo.try_times;
+	if (tryTimes >= 5) {
+		return Promise.reject({status: 2009});
+	}
+	// 密码错误
+	if (userInfo.password !== md5(password)) {
+		const newTryTimes = tryTimes + 1;
+		await tables.users.setTryTimes(pool, userInfo.id, newTryTimes);
+		return Promise.reject({status: 2005, wrongTimes: newTryTimes});
+	}
+	// 成功
+	if (tryTimes > 0) {
+		await tables.users.setTryTimes(pool, userInfo.id, 0);
+	}
+	return userInfo;
 };
 
 // 获取用户信息
-var getUserInfo = function(userId, callback) {
+const getUserInfo = async userId => {
 
-	pool.query('select tel,balance,alipay from users where id=' + userId, function(err, result) {
-		if (err) {
-			callback({status: 1003, desc: err});
-			return;
-		}
-		var userInfo = result[0];
-		if (!userInfo) {
-			callback({status: 2002});
-			return;
-		}
-		callback({status: 1000, userInfo: userInfo});
-	});
+	return await tables.users.getUserById(pool, userId);
 };
 
 // 注册 1-成功 0-数据库异常
-var register = function(tel, code, password, callback) {
+const register = async (tel, code, password) => {
 
-	var nowStamp = Date.now();
-	trans(function(transerr, connection) {
-		if (transerr) {
-			callback({status: 1003, desc: transerr});
-			return;
+	const conn = await transs.getConnection();
+	try {
+		const telAvailable = await tables.users.telRegisterAvailable(conn, tel);
+		// 手机号已被注册
+		if (!telAvailable) {
+			await Promise.reject({status: 2001});
 		}
-		// 判断手机号是否已被注册
-		connection.query('select id from users where tel="' + tel + '" for update', function(usererr, result) {
-			if (usererr) {
-				_release(connection);
-				callback({status: 1003, desc: usererr});
-				return;
-			}
-			if (result.length >= 1) {
-				_release(connection);
-				callback({status: 2001});
-				return;
-			}
-			// 验证码校验
-			connection.query('select id,code from code where tel="' + tel + '" and type="0" and consumed=0 and create_time>' + (nowStamp - 300000) + ' for update', function(codeerr, result) {
-				if (codeerr) {
-					_release(connection);
-					callback({status: 1003, desc: codeerr});
-					return;
-				}
-				var codeArr = [];
-				for (var i = 0; i < result.length; i ++) {
-					codeArr.push(result[i].code);
-				}
-				var codeIndex = codeArr.indexOf(code);
-				if (codeIndex < 0) {
-					_release(connection);
-					callback({status: 8001});
-					return;
-				}
-				var codeInfo = result[codeIndex];
-				// 将该验证码置为已消费状态
-				connection.query('update code set consumed=1 where id=' + codeInfo.id, function(conserr, result) {
-					if (conserr) {
-						_release(connection);
-						callback({status: 1003, desc: conserr});
-						return;
-					}
-					// 添加新用户
-					connection.query('insert into users(tel,password,create_time) values("' + tel + '","' + md5(password) + '",' + nowStamp + ')', function(createerr, result) {
-						if (createerr) {
-							_release(connection);
-							callback(createerr);
-							return;
-						}
-						connection.commit(function(commiterr) {
-							if (commiterr) {
-								_release(connection);
-								callback({status: 1003, desc: commiterr});
-							}
-							else {
-								connection.release();
-								callback({status: 1000});
-							}
-						});
-					});
-				});
-			});
-		});
-	});
+		// 获取验证码id
+		const codeId = await tables.code.getIdByValidCode(conn, tel, 0, code);
+		// 将验证码置为已使用状态
+		await tables.code.consumeCode(conn, codeId);
+		// 添加新用户
+		await tables.users.insert(conn, tel, md5(password));
+		// 提交
+		await transs.commit(conn);
+	}
+	catch (e) {
+		_release(conn);
+		return Promise.reject(e);
+	}
 };
 
 // 创建并发送注册所需的验证码
-var sendRegisterCode = function(tel, callback) {
+const sendRegisterCode = async tel => {
 
-	var code = _createRandomCode(), nowStamp = Date.now();
-	pool.query('select id from users where tel="' + tel + '"', function(errA, resultA) {
-		if (errA) {
-			callback({status: 1003, desc: errA});
-			return;
-		}
-		var userInfo = resultA[0];
-		if (userInfo) {
-			callback({status: 2001});
-			return;
-		}
-		pool.query('select * from code where tel="' + tel + '" and type="0" order by create_time desc', function(errB, resultB) {
-			if (errB) {
-				callback({status: 1003, desc: errB});
-				return;
-			}
-			var latestCodeInfo = resultB[0];
-			// 1分钟之内只能申请一次验证码
-			if (latestCodeInfo && (nowStamp - latestCodeInfo.create_time < 60000)) {
-				callback({status: 8002});
-				return;
-			}
-			pool.query('insert into code(code,type,tel,create_time) values("' + code + '","0","' + tel + '",' + nowStamp + ')', function(errC, resultC) {
-				if (errC) {
-					callback({status: 1003, desc: errC});
-				}
-				else {
-					callback({status: 1000});
-					sms.sendVerifyCode(tel, code, 0);
-				}
-			});
-		});
-	});
+	const code = _createRandomCode();
+	const registered = await tables.users.telRegistered(pool, tel);
+	if (registered) {
+		return Promise.reject({status: 2001});
+	}
+	await tables.code.checkCanGet(pool, tel, 0);
+	await tables.code.insert(pool, tel, 0, code);
+	await sms.sendVerifyCode(tel, code, 0);
 };
 
 // 修改密码
-var updatePassword = function(userId, oldpassword, newpassword, callback) {
+const updatePassword = async (userId, oldpassword, newpassword) => {
 
-	pool.query('select password,try_times from users where id=' + userId, function(errA, resultA) {
-		if (errA) {
-			callback({status: 1003, desc: errA});
-			return;
-		}
-		var userInfo = resultA[0];
-		if (!userInfo) {
-			callback({status: 2002});
-			return;
-		}
-		// 密码连续错误5次
-		var tryTimes = userInfo.try_times;
-		if (tryTimes >= 5) {
-			callback({status: 2009});
-			return;
-		}
-		var password = userInfo.password;
-		if (md5(oldpassword) !== password) {
-			_setTryTimes(userId, tryTimes + 1, callback);
-			return;
-		}
-		pool.query('update users set password="' + md5(newpassword) + '",try_times=0 where id="' + userId + '"', function(errB, resultB) {
-			if (errB) {
-				callback({status: 1003, desc: errB});
-				return;
-			}
-			callback({status: 1000});
-		});
-	});
+	const userInfo = await tables.users.getPwdAndTrytimesById(pool, userId);
+	const tryTimes = userInfo.try_times;
+	// 账号已被锁定
+	if (tryTimes >= 5) {
+		return Promise.reject({status: 2009});
+	}
+	// 密码错误
+	if (md5(oldpassword) !== userInfo.password) {
+		const newTryTimes = tryTimes + 1;
+		await tables.users.setTryTimes(pool, userId, newTryTimes);
+		return Promise.reject({status: 2005, wrongTimes: newTryTimes});
+	}
+	// 修改密码
+	await tables.users.updatePassword(pool, userId, md5(newpassword));
 };
 
 // 重置密码
-var resetPassword = function(tel, code, password, callback) {
+const resetPassword = async (tel, code, password) => {
 
-	pool.query('select id from users where tel="' + tel + '"', function(errA, resultA) {
-		if (errA) {
-			callback({status: 1003, desc: errA});
-			return;
-		}
-		var userInfo = resultA[0];
-		if (!userInfo) {
-			callback({status: 2002});
-			return;
-		}
-		var nowStamp = Date.now();
-		trans(function(transerr, conn) {
-			if (transerr) {
-				callback({status: 1003, desc: transerr});
-				return;
-			}
-			conn.query('select id,code from code where tel="' + tel + '" and type="1" and consumed=0 and create_time>' + (nowStamp - 300000) + ' for update', function(errB, resultB) {
-				if (errB) {
-					_release(conn);
-					callback({status: 1003, desc: errB});
-					return;
-				}
-				var codeArr = [];
-				for (var i = 0; i < resultB.length; i ++) {
-					codeArr.push(resultB[i].code);
-				}
-				var codeIndex = codeArr.indexOf(code);
-				if (codeIndex < 0) {
-					_release(conn);
-					callback({status: 8001});
-					return;
-				}
-				var codeInfo = resultB[codeIndex];
-				// 将该验证码置为已消费状态
-				conn.query('update code set consumed=1 where id=' + codeInfo.id, function(errC, resultC) {
-					if (errC) {
-						_release(conn);
-						callback({status: 1003, desc: errC});
-						return;
-					}
-					// 重置密码
-					conn.query('update users set password="' + md5(password) + '",try_times=0 where id=' + userInfo.id, function(errD, resultD) {
-						if (errD) {
-							_release(conn);
-							callback({status: 1003, desc: errD});
-							return;
-						}
-						conn.commit(function(commiterr) {
-							if (commiterr) {
-								_release(conn);
-								callback({status: 1003, desc: commiterr});
-							}
-							else {
-								conn.release();
-								callback({status: 1000});
-							}
-						});
-					});
-				});
-			});
-		});
-	});
+	const userInfo = await tables.users.getUserByTel(pool, tel);
+	const conn = await transs.getConnection();
+	try {
+		// 获取验证码id
+		const codeId = await tables.code.getIdByValidCode(conn, tel, 1, code);
+		// 将验证码置为已使用状态
+		await tables.code.consumeCode(conn, codeId);
+		// 重置密码
+		await tables.users.updatePassword(conn, userInfo.id, md5(password));
+		// 提交
+		await transs.commit(conn);
+	}
+	catch(e) {
+		_release(conn);
+		return Promise.reject(e);
+	}
 };
 
 // 创建并发送重置密码所需的验证码
-var sendResetCode = function(tel, callback) {
+const sendResetCode = async tel => {
 
-	var code = _createRandomCode(), nowStamp = Date.now();
-	pool.query('select id from users where tel="' + tel + '"', function(errA, resultA) {
-		if (errA) {
-			callback({status: 1003, desc: errA});
-			return;
-		}
-		var userInfo = resultA[0];
-		if (!userInfo) {
-			callback({status: 2002});
-			return;
-		}
-		pool.query('select * from code where tel="' + tel + '" and type="1" order by create_time desc', function(errB, resultB) {
-			if (errB) {
-				callback({status: 1003, desc: errB});
-				return;
-			}
-			var latestCodeInfo = resultB[0];
-			// 1分钟之内只能申请一次验证码
-			if (latestCodeInfo && (nowStamp - latestCodeInfo.create_time < 60000)) {
-				callback({status: 8002});
-				return;
-			}
-			pool.query('insert into code(code,type,tel,create_time) values("' + code + '","1","' + tel + '",' + nowStamp + ')', function(errC, resultC) {
-				if (errC) {
-					callback({status: 1003, desc: errC});
-				}
-				else {
-					callback({status: 1000});
-					sms.sendVerifyCode(tel, code, 1);
-				}
-			});
-		});
-	});
+	const code = _createRandomCode();
+	const registered = await tables.users.telRegistered(pool, tel);
+	if (!registered) {
+		await Promise.reject({status: 2002});
+	}
+	await tables.code.checkCanGet(pool, tel, 1);
+	await tables.code.insert(pool, tel, 1, code);
+	await sms.sendVerifyCode(tel, code, 1);
 };
 
 // 设置支付宝
@@ -398,42 +223,16 @@ var setAlipay = function(userid, alipay, code, callback) {
 };
 
 // 创建并发送绑定支付宝所需的验证码
-var sendAlipayCode = function(userid, callback) {
+const sendAlipayCode = async userid => {
 
-	var code = _createRandomCode(), nowStamp = Date.now();
-	pool.query('select tel from users where id=' + userid, function(errA, resultA) {
-		if (errA) {
-			callback({status: 1003, desc: errA});
-			return;
-		}
-		var userInfo = resultA[0];
-		if (!userInfo) {
-			callback({status: 2002});
-			return;
-		}
-		var tel = userInfo.tel;
-		pool.query('select * from code where tel="' + tel + '" and type="2" order by create_time desc', function(errB, resultB) {
-			if (errB) {
-				callback({status: 1003, desc: errB});
-				return;
-			}
-			var latestCodeInfo = resultB[0];
-			// 1分钟之内只能申请一次验证码
-			if (latestCodeInfo && (nowStamp - latestCodeInfo.create_time < 60000)) {
-				callback({status: 8002});
-				return;
-			}
-			pool.query('insert into code(code,type,tel,create_time) values("' + code + '","2","' + tel + '",' + nowStamp + ')', function(errC, resultC) {
-				if (errC) {
-					callback({status: 1003, desc: errC});
-				}
-				else {
-					callback({status: 1000});
-					sms.sendVerifyCode(tel, code, 2);
-				}
-			});
-		});
-	});
+	const code = _createRandomCode();
+	const registered = await tables.users.telRegistered(pool, tel);
+	if (!registered) {
+		await Promise.reject({status: 2002});
+	}
+	await tables.code.checkCanGet(pool, tel, 2);
+	await tables.code.insert(pool, tel, 2, code);
+	await sms.sendVerifyCode(tel, code, 2);
 };
 
 // 创建充值订单
@@ -593,40 +392,46 @@ var getOrderHistoryByUser = function(userid, callback) {
 	});
 };
 
-// 公开局下单 0-数据库错误,1-成功,2-游戏id不存在,3-已封盘,4-余额不足或账号异常
+// 公开局下单
 const createConfessedOrder = async (type, quota, userid, gameid) => {
 
 	const conn = await transs.getConnection();
 
-	// 获取比赛信息及用户余额
-	const [gameInfo, balance] = await Promise.all([
-		tables.games.getOpenGameById(conn, gameid),
-		tables.users.getBalance(conn, userid)
-	]);
+	try {
+		// 获取比赛信息及用户余额
+		const [gameInfo, balance] = await Promise.all([
+			tables.games.getOpenGameById(conn, gameid),
+			tables.users.getBalanceForUpdate(conn, userid)
+		]);
 
-	const newBalance = balance - quota;
-	// 余额不足
-	if (newBalance < 0) {
-		return Promise.reject({status: 2003});
-	}
+		const newBalance = balance - quota;
+		// 余额不足
+		if (newBalance < 0) {
+			await Promise.reject({status: 2003});
+		}
 
-	// 扣款
-	await tables.users.setBalance(conn, userid, newBalance);
-	// 创建订单
-	await tables.orders.insert(conn, type, userid, gameid, quota);
-	// 更新游戏总投注金额
-	let columnName, value;
-	if (type === '0') {
-		columnName = 'even_amount';
-	}
-	else {
-		columnName = 'odd_amount';
-	}
-	value = gameInfo[columnName] + quota;
-	await tables.games.updateAmount(conn, columnName, value, gameid);
+		// 扣款
+		await tables.users.setBalance(conn, userid, newBalance);
+		// 创建订单
+		await tables.orders.insert(conn, type, userid, gameid, quota);
+		// 更新游戏总投注金额
+		let columnName, value;
+		if (type === '0') {
+			columnName = 'even_amount';
+		}
+		else {
+			columnName = 'odd_amount';
+		}
+		value = gameInfo[columnName] + quota;
+		await tables.games.updateAmount(conn, columnName, value, gameid);
 
-	// 提交事务
-	return transs.commit(conn);
+		// 提交事务
+		await transs.commit(conn);
+	}
+	catch (e) {
+		_release(conn);
+		return Promise.reject(e);
+	}
 };
 
 // 提现

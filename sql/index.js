@@ -57,8 +57,6 @@ const transs = {
 		return new Promise((resolve, reject) => {
 			conn.commit(err => {
 				if (err) {
-					conn.rollback();
-					conn.release();
 					reject({status: 1003, desc: err});
 				}
 				else {

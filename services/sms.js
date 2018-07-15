@@ -14,20 +14,18 @@ var _sendMessage = function(tel, template, param) {
 		TemplateParam: JSON.stringify(param)
 	};
 
-	client
-	.sendSMS(options)
-	.then(
-		// 成功
-		function(res) {
-			if (res.Code !== 'OK') {
-				console.log({status: 7002, desc: res});
+	return client.sendSMS(options).then(res => {
+		return new Promise((resolve, reject) => {
+			if (res.Code === 'OK') {
+				resolve();
 			}
-		},
-		// 失败
-		function(err) {
-			console.log({status: 7001, desc: err});
-		}
-	);
+			else {
+				reject({status: 7002, desc: res});
+			}
+		});
+	}).catch(err => {
+		return Promise.reject({status: 7001, desc: err});
+	});
 };
 
 // 短信模板列表
@@ -46,7 +44,7 @@ var templates = [
 var sendVerifyCode = function(tel, code, type) {
 
 	var templateId = templates[type];
-	_sendMessage(tel, templateId, {code: code.toString()});
+	return _sendMessage(tel, templateId, {code: code.toString()});
 };
 
 module.exports = {
