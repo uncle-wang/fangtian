@@ -24,6 +24,22 @@ const methods = {
 			});
 		});
 	},
+	// 根据userid获取手机号
+	getTelById: (conn, id) => {
+
+		const selector = 'select tel from users where id=' + id;
+		return query(conn, selector).then(result => {
+			return Promise((resolve, reject) => {
+				const [userInfo] = result;
+				if (userInfo) {
+					resolve(userInfo.tel);
+				}
+				else {
+					reject({status: 2002});
+				}
+			});
+		});
+	},
 	// 判断手机号是否被注册
 	telRegistered: (conn, tel) => {
 
@@ -121,6 +137,12 @@ const methods = {
 	updatePassword: (conn, id, password) => {
 
 		const selector = 'update users set password="' + password + '",try_times=0 where id="' + id + '"';
+		return query(conn, selector);
+	},
+	// 设置支付宝账号
+	setAlipay: (conn, id, alipay) => {
+
+		const selector = 'update users set alipay="' + alipay + '" where id=' + id;
 		return query(conn, selector);
 	},
 };

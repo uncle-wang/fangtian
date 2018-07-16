@@ -178,8 +178,10 @@ module.exports = function(app) {
 			var alipay = req.query.alipay;
 			var code = req.query.code;
 			if (alipay && code) {
-				api.setAlipay(userId, alipay, code, function(resultMap) {
-					res.send(resultMap);
+				api.setAlipay(userId, alipay, code).then(() => {
+					res.send({status: 1000});
+				}).catch(err => {
+					res.send(err);
 				});
 			}
 			else {
@@ -216,22 +218,19 @@ module.exports = function(app) {
 			var price = req.query.price;
 			var redirect = req.query.redirect;
 			var quota = parseInt(price);
-			api.createRecharge(userId, quota, function(resultMap) {
-				if (resultMap.status === 1) {
-					var payenv = PAYCONFIG.ENVKEY;
-					var orderId = payenv + '_' + resultMap.orderId;
-					var orderInfo = payenv;
-					var str = apiKey + apiUser + orderId + orderInfo + price + redirect + type;
-					var signature = md5(str);
-					res.send({status: 1000, payInfo: {
-						order_id: orderId,
-						order_info: orderInfo,
-						signature: signature
-					}});
-				}
-				else {
-					res.send({status: 1003, desc: resultMap.error});
-				}
+			api.createRecharge(userId, quota).then(rechargeId => {
+				var payenv = PAYCONFIG.ENVKEY;
+				var orderId = payenv + '_' + rechargeId;
+				var orderInfo = payenv;
+				var str = apiKey + apiUser + orderId + orderInfo + price + redirect + type;
+				var signature = md5(str);
+				res.send({status: 1000, payInfo: {
+					order_id: orderId,
+					order_info: orderInfo,
+					signature: signature
+				}});
+			}).catch(err => {
+				res.send(err);
 			});
 		}
 		else {
@@ -244,8 +243,10 @@ module.exports = function(app) {
 
 		var userId = req.session.userid;
 		if (userId) {
-			api.getRechargeHistoryByUser(userId, function(resultMap) {
-				res.send(resultMap);
+			api.getRechargeHistoryByUser(userId).then(rechargeList => {
+				res.send({status: 1000, rechargeList});
+			}).catch(err => {
+				res.send(err);
 			});
 		}
 		else {
@@ -260,33 +261,26 @@ module.exports = function(app) {
 		if (userId) {
 			var rechargeId = req.query.rechargeId;
 			var redirect = req.query.redirect;
-			api.getRechargeInfo(rechargeId, function(resultMap) {
-				if (resultMap.status === 0) {
-					res.send({status: 1003, desc: resultMap.error});
+			api.getRechargeInfo(rechargeId).then(rechargeInfo => {
+				if (rechargeInfo.user !== userId) {
+					res.send({status: 9002});
+					return;
 				}
-				else if (resultMap.status === 1) {
-					var rechargeInfo = resultMap.rechargeInfo;
-					if (rechargeInfo.user !== userId) {
-						res.send({status: 3001});
-						return;
-					}
-					var payenv = PAYCONFIG.ENVKEY;
-					var apiKey = PAYCONFIG.APIKEY;
-					var apiUser = PAYCONFIG.APIUSER;
-					var orderId = payenv + '_' + rechargeId;
-					var orderInfo = payenv;
-					var price = rechargeInfo.quota.toFixed(2);
-					var type = PAYCONFIG.TYPE;
-					var str = apiKey + apiUser + orderId + orderInfo + price + redirect + type;
-					var signature = md5(str);
-					res.send({status: 1000, rechargeInfo: {
-						signature: signature,
-						order_info: orderInfo
-					}});
-				}
-				else {
-					res.send({status: 3001});
-				}
+				var payenv = PAYCONFIG.ENVKEY;
+				var apiKey = PAYCONFIG.APIKEY;
+				var apiUser = PAYCONFIG.APIUSER;
+				var orderId = payenv + '_' + rechargeId;
+				var orderInfo = payenv;
+				var price = rechargeInfo.quota.toFixed(2);
+				var type = PAYCONFIG.TYPE;
+				var str = apiKey + apiUser + orderId + orderInfo + price + redirect + type;
+				var signature = md5(str);
+				res.send({status: 1000, rechargeInfo: {
+					signature: signature,
+					order_info: orderInfo
+				}});
+			}).catch(err => {
+				res.send(err);
 			});
 		}
 		else {
@@ -322,16 +316,20 @@ module.exports = function(app) {
 	// 查询最近一期confessed游戏
 	app.get('/getLatestConfessedGame', function(req, res) {
 
-		api.getLatestConfessedGame(function(resultMap) {
-			res.send(resultMap);
+		api.getLatestConfessedGame().then(gameInfo => {
+			res.send({status: 1000, gameInfo});
+		}).catch(err => {
+			res.send(err);
 		});
 	});
 
 	// 查询往期confessed游戏
 	app.get('/getConfessedHistory', function(req, res) {
 
-		api.getConfessedGameHistory(function(resultMap) {
-			res.send(resultMap);
+		api.getConfessedGameHistory().then(gameList => {
+			res.send({status: 1000, gameList});
+		}).catch(err => {
+			res.send(err);
 		});
 	});
 

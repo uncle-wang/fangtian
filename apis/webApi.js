@@ -155,71 +155,25 @@ const sendResetCode = async tel => {
 };
 
 // 设置支付宝
-var setAlipay = function(userid, alipay, code, callback) {
+const setAlipay = async (userid, alipay, code) => {
 
-	pool.query('select tel from users where id=' + userid, function(errA, resultA) {
-		if (errA) {
-			callback({status: 1003, desc: errA});
-			return;
-		}
-		var userInfo = resultA[0];
-		if (!userInfo) {
-			callback({status: 2002});
-			return;
-		}
-		var tel = userInfo.tel;
-		var nowStamp = Date.now();
-		trans(function(transerr, conn) {
-			if (transerr) {
-				callback({status: 1003, desc: transerr});
-				return;
-			}
-			conn.query('select id,code from code where tel="' + tel + '" and type="2" and consumed=0 and create_time>' + (nowStamp - 300000) + ' for update', function(errB, resultB) {
-				if (errB) {
-					_release(conn);
-					callback({status: 1003, desc: errB});
-					return;
-				}
-				var codeArr = [];
-				for (var i = 0; i < resultB.length; i ++) {
-					codeArr.push(resultB[i].code);
-				}
-				var codeIndex = codeArr.indexOf(code);
-				if (codeIndex < 0) {
-					_release(conn);
-					callback({status: 8001});
-					return;
-				}
-				var codeInfo = resultB[codeIndex];
-				// 将该验证码置为已消费状态
-				conn.query('update code set consumed=1 where id=' + codeInfo.id, function(errC, resultC) {
-					if (errC) {
-						_release(conn);
-						callback({status: 1003, desc: errC});
-						return;
-					}
-					// 设置支付宝
-					conn.query('update users set alipay="' + alipay + '" where id=' + userid, function(errD, resultD) {
-						if (errD) {
-							_release(conn);
-							callback({status: 1003, desc: errD});
-							return;
-						}
-						conn.commit(function(commiterr) {
-							if (commiterr) {
-								_release(conn);
-								callback({status: 1003, desc: commiterr});
-							}
-							else {
-								conn.release();
-								callback({status: 1000});
-							}
-						});
-					});
-				});
-			});
-		});
-	});
+	// 获取用户手机号
+	const tel = await tables.users.getTelById(pool, userid);
+	const conn = await transs.getConnection();
+	try {
+		// 获取验证码id
+		const codeId = await tables.code.getIdByValidCode(conn, tel, 2, code);
+		// 将验证码置为已使用状态
+		await tables.code.consumeCode(conn, codeId);
+		// 设置支付宝
+		await tables.users.setAlipay(conn, userid, alipay);
+		// 提交
+		await transs.commit(conn);
+	}
+	catch(e) {
+		_release(conn);
+		return Promise.reject(e);
+	}
 };
 
 // 创建并发送绑定支付宝所需的验证码
@@ -236,148 +190,68 @@ const sendAlipayCode = async userid => {
 };
 
 // 创建充值订单
-var createRecharge = function(userid, quota, callback) {
+const createRecharge = async (userid, quota) => {
 
-	pool.query('insert into recharge(user,quota,create_time) values(' + userid + ',' + (quota * 6000) + ',' + Date.now() + ')', function(err, result) {
-		if (err) {
-			callback({status: 0, error: err});
-			return;
-		}
-		callback({status: 1, orderId: result.insertId});
-	});
+	const rechargeId = await tables.recharge.insert(pool, userid, quota);
+	return rechargeId;
 };
 
 // 获取充值记录
-var getRechargeHistoryByUser = function(userid, callback) {
+const getRechargeHistoryByUser = async userid => {
 
-	pool.query('select * from recharge where user=' + userid + ' order by create_time desc', function(err, result) {
-		if (err) {
-			callback({status: 1003, desc: err});
-			return;
-		}
-		callback({status: 1000, rechargeList: result});
-	});
+	const history = await tables.recharge.getHistoryByUserid(pool, userid);
+	return history;
 };
 
 // 查询充值订单信息
-var getRechargeInfo = function(rechargeId, callback) {
+const getRechargeInfo = async rechargeid => {
 
-	pool.query('select * from recharge where id=' + rechargeId, function(err, result) {
-		if (err) {
-			callback({status: 0, error: err});
-			return;
-		}
-		if (result.length < 1) {
-			callback({status: 2});
-			return;
-		}
-		callback({status: 1, rechargeInfo: result[0]});
-	});
+	const rechargeInfo = await tables.recharge.getInfo(pool, rechargeid);
+	return rechargeInfo;
 };
 
 // 支付充值订单
-var payRecharge = function(rechargeId, callback) {
+const payRecharge = rechargeId => {
 
-	trans(function(transerr, conn) {
-
-		if (transerr) {
-			callback({status: 0, error: transerr});
-			return;
+	const conn = transs.getConnection();
+	try {
+		// 获取充值订单信息
+		const rechargeInfo = await tables.recharge.getInfo(conn, rechargeId, true);
+		// 订单为非待支付状态
+		if (rechargeInfo.status !== '0') {
+			await Promise.reject({status: 9003});
 		}
-		conn.query('select * from recharge where id=' + rechargeId + ' for update', function(ordererr, orderresult) {
-			if (ordererr) {
-				_release(conn);
-				callback({status: 0, error: ordererr});
-				return;
-			}
-			if (orderresult.length <= 0) {
-				_release(conn);
-				callback({status: 2});
-				return;
-			}
-			var rechargeInfo = orderresult[0];
-			if (rechargeInfo.status !== '0') {
-				_release(conn);
-				callback({status: 3});
-				return;
-			}
-			var userid = rechargeInfo.user;
-			conn.query('select balance from users where id=' + userid + ' for update', function(usrerr, userresult) {
-				if (usrerr) {
-					_release(conn);
-					callback({status: 0, error: usrerr});
-					return;
-				}
-				var userInfo = userresult[0];
-				if (userInfo) {
-					var newBalance = userInfo.balance + rechargeInfo.quota;
-					conn.query('update users set balance=' + newBalance + ' where id=' + userid, function(seterr) {
-						if (seterr) {
-							_release(conn);
-							callback({status: 0, error: seterr});
-							return;
-						}
-						conn.query('update recharge set status="1" where id=' + rechargeId, function(payerr) {
-							if (payerr) {
-								_release(conn);
-								callback({status: 0, error: payerr});
-								return;
-							}
-							conn.commit(function(comerr) {
-								if (comerr) {
-									_release(conn);
-									callback({status: 0, error: comerr});
-									return;
-								}
-								conn.release();
-								callback({status: 1});
-								return;
-							});
-						});
-					});
-				}
-				else {
-					_release(conn);
-					callback({status: 4});
-					return;
-				}
-			});
-		});
-	});
+		// 获取订单用户
+		const userId = rechargeInfo.user;
+		// 获取用户余额
+		const balance = await tables.users.getBalanceForUpdate(conn, userId);
+		// 计算用户最新余额
+		const newBalance = balance + rechargeInfo.quota;
+		// 更新用户余额
+		await tables.users.setBalance(conn, userId, newBalance);
+		// 修改订单为已支付状态
+		await tables.recharge.payed(conn, rechargeId);
+		// 提交
+		await transs.commit(conn);
+	}
+	catch(e) {
+		_release(conn);
+		return Promise.reject(e);
+	}
 };
 
 // 获取最近一期公开游戏局
-var getLatestConfessedGame = function(callback) {
+const getLatestConfessedGame = async () => {
 
-	pool.query('select * from confessed_games order by id desc', function(err, result) {
-
-		if (err) {
-			callback({status: 1003, desc: err});
-		}
-		else {
-			if (result.length > 0) {
-				callback({status: 1000, gameInfo: result[0]});
-			}
-			// 查询不到
-			else {
-				callback({status: 4001});
-			}
-		}
-	});
+	const gameInfo = await tables.games.getLatestGameInfo(pool);
+	return gameInfo;
 };
 
 // 获取往期记录
-var getConfessedGameHistory = function(callback) {
+const getConfessedGameHistory = async () => {
 
-	pool.query('select * from confessed_games where status="1" order by create_time desc', function(err, result) {
-
-		if (err) {
-			callback({status: 1003, desc: err});
-		}
-		else {
-			callback({status: 1000, gameList: result});
-		}
-	});
+	const history = await tables.games.getHistory(pool);
+	return history;
 };
 
 // 查询历史订单
