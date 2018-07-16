@@ -1,4 +1,6 @@
-module.exports = (conn, selector) => {
+const pool = require('./pool');
+
+module.exports = (selector, conn = pool) => {
 
 	return new Promise((resolve, reject) => {
 

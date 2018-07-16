@@ -3,39 +3,37 @@ const query = require('./../query');
 const methods = {
 
 	// 创建充值订单
-	insert: (conn, userid, quota) => {
+	async insert({userid, quota, conn}) {
 
 		const nowStamp = Date.now();
 		const selector = 'insert into recharge(user,quota,create_time) values(' + userid + ',' + quota + ',' + nowStamp + ')';
-		return query(conn, selector).then(result => {
-			return Promise.resolve(result.insertId);
-		});
+		const result = await query(selector, conn);
+		return result.insertId;
 	},
 	// 获取指定用户的充值记录
-	getHistoryByUserid: (conn, userid) => {
+	async getHistoryByUserid({userid, conn}) {
 
 		const selector = 'select * from recharge where user=' + userid + ' order by create_time desc';
-		return query(conn, selector);
+		return query(selector, conn);
 	},
 	// 获取充值订单详细信息
-	getInfo: (conn, id, update) => {
+	async getInfo({id, forupdate, conn}) {
 
-		const selector = 'select * from recharge where id=' + id + (update ? ' for update' : '');
-		return query(conn, selector).then(result => {
-			const [rechargeInfo] = result;
-			if (rechargeInfo) {
-				return Promise.resolve(rechargeInfo);
-			}
-			else {
-				return Promise.reject({status: 9001});
-			}
-		});
+		const selector = 'select * from recharge where id=' + id + (forupdate ? ' for update' : '');
+		const result = await query(selector, conn);
+		const [rechargeInfo] = result;
+		if (rechargeInfo) {
+			return rechargeInfo;
+		}
+		else {
+			return Promise.reject({status: 9001});
+		}
 	},
 	// 修改充值订单为已支付状态
-	payed: (conn, id) => {
+	async payed({id, conn}) {
 
 		const selector = 'update recharge set status="1" where id=' + id;
-		return query(conn, selector);
+		return query(selector, conn);
 	},
 };
 
