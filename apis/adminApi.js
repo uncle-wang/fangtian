@@ -128,7 +128,7 @@ var updateUserBalance = function(gameid, callback) {
 				var amount = 0;
 				// 胜或平
 				if (orderResult === 2 || orderType === orderResult) {
-					amount = orderQuoat * orderTimes;
+					amount = Math.floor(orderQuoat * orderTimes);
 					_addUserBalance(userId, amount, function(resultMap) {
 						if (resultMap.status !== 1000) {
 							errList.push({userId: userId, order: orderInfo, error: resultMap});
@@ -203,10 +203,10 @@ var _updateGameAndOrders = function(id, resultno, callback) {
 			else {
 				result = __getParity(resultno);
 				if (result === 0) {
-					times = Math.floor(100 * total / evenAmount) / 100;
+					times = Math.floor(1000 * total / evenAmount) / 1000;
 				}
 				else {
-					times = Math.floor(100 * total / oddAmount) / 100;
+					times = Math.floor(1000 * total / oddAmount) / 1000;
 				}
 			}
 			// 更新游戏信息

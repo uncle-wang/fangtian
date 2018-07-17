@@ -32,12 +32,9 @@
 	9003-充值订单状态不可支付
 */
 
-module.exports = function(app) {
-
-	// 用户端
-	require('./webCtrl')(app);
-	// 管理员端
-	require('./adminCtrl')(app);
-	// 定时任务
-	require('./schedules');
-};
+// 用户端
+require('./webCtrl');
+// 管理员端
+require('./adminCtrl');
+// 定时任务
+require('./schedules');

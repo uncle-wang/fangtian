@@ -1,21 +1,7 @@
-var express = require('express');
-var bodyParser = require('body-parser');
-var session = require('express-session');
-var secret = require('./config').SESSIONSECRET;
-var app = express();
-
-app.disable('x-powered-by');
-app.disable('server');
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({extended: false}));
-app.use(session({
-	secret: secret,
-	resave: true,
-	saveUninitialized: true
-}));
+const app = require('./app');
 
 // 加载控制器
-require('./controllers')(app);
+require('./controllers');
 
 app.use(function(req, res) {
 
