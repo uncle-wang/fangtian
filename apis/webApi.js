@@ -198,7 +198,7 @@ const getRechargeInfo = async rechargeid => {
 };
 
 // 支付充值订单
-const payRecharge = rechargeId => {
+const payRecharge = async rechargeId => {
 
 	const conn = transs.getConnection();
 	try {
@@ -288,7 +288,7 @@ const createConfessedOrder = async (type, quota, userid, gameid) => {
 };
 
 // 提现
-const pickup = async (userid, quota, alipay) => {
+const pickup = async (userid, quota) => {
 
 	const conn = await transs.getConnection();
 	try {
@@ -313,7 +313,7 @@ const pickup = async (userid, quota, alipay) => {
 			await Promise.reject({status: 2003});
 		}
 		// 更新余额及提现时间
-		await sql.user.setBalance({id: userid, balance: newBalance, pickup: true, conn});
+		await sql.users.setBalance({id: userid, balance: newBalance, pickup: true, conn});
 		// 创建提现订单
 		await sql.pickup.insert({userid, alipay: userInfo.alipay, quota, fees, conn});
 		// 提交

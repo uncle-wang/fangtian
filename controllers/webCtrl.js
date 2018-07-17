@@ -14,10 +14,10 @@ module.exports = function(app) {
 	// 登陆
 	app.get('/sign', function(req, res) {
 
-		var tel = req.query.tel;
+		var username = req.query.username;
 		var password = req.query.password;
-		if (tel && password) {
-			api.login(tel, password).then(userInfo => {
+		if (username && password) {
+			api.login(username, password).then(userInfo => {
 				req.session.userid = userInfo.id;
 				req.session.tel = userInfo.tel;
 				res.send({status: 1000});
@@ -26,7 +26,7 @@ module.exports = function(app) {
 			});
 		}
 		else {
-			res.send({status: 1002, desc: 'tel and password required'});
+			res.send({status: 1002, desc: 'username and password required'});
 		}
 	});
 
@@ -371,12 +371,11 @@ module.exports = function(app) {
 		if (userId) {
 			var reg = /^[1-9]\d*$/;
 			var quota = req.query.quota;
-			var alipay = req.query.alipay;
-			if (quota && alipay) {
+			if (quota) {
 				if (reg.test(quota)) {
 					quota = parseInt(quota);
 					if (quota >= 100) {
-						api.pickup(userId, quota, alipay).then(newBalance => {
+						api.pickup(userId, quota).then(newBalance => {
 							res.send({status: 1000, newBalance});
 						}).catch(err => {
 							res.send(err);
@@ -385,7 +384,7 @@ module.exports = function(app) {
 					}
 				}
 			}
-			res.send({status: 1002, desc: 'quota and alipay invalid'});
+			res.send({status: 1002, desc: 'quota invalid'});
 		}
 		else {
 			res.send({status: 1001});

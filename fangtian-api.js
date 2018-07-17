@@ -4,6 +4,8 @@ var session = require('express-session');
 var secret = require('./config').SESSIONSECRET;
 var app = express();
 
+app.disable('x-powered-by');
+app.disable('server');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: false}));
 app.use(session({
