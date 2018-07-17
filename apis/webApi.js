@@ -25,7 +25,7 @@ const _createRandomCode = () => {
 	return s;
 };
 
-// 登陆 1-成功 0-用户不存在 2-密码错误
+// 登陆
 const login = async (tel, password) => {
 
 	const userInfo = await sql.users.getInfoByTel({tel});
@@ -53,7 +53,7 @@ const getUserInfo = async userId => {
 	return sql.users.getInfoById({id: userId});
 };
 
-// 注册 1-成功 0-数据库异常
+// 注册
 const register = async (tel, code, password) => {
 
 	const conn = await transs.getConnection();
@@ -254,7 +254,7 @@ const createConfessedOrder = async (type, quota, userid, gameid) => {
 		// 获取比赛信息及用户余额
 		const [gameInfo, {balance}] = await Promise.all([
 			sql.games.getOpenGameById({conn, id: gameid}),
-			sql.users.getInfoById({conn, id: userid, forupdate: true});
+			sql.users.getInfoById({conn, id: userid, forupdate: true})
 		]);
 
 		const newBalance = balance - quota;
