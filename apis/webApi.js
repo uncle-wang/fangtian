@@ -188,7 +188,7 @@ const createRecharge = async (userid, quota) => {
 // 获取充值记录
 const getRechargeHistoryByUser = async userid => {
 
-	return sql.recharge.getHistoryByUserid({userid});
+	return sql.recharge.getListByUserid({userid});
 };
 
 // 查询充值订单信息
@@ -292,177 +292,75 @@ const pickup = async (userid, quota, alipay) => {
 
 	const conn = await transs.getConnection();
 	try {
-		//
+		// 获取用户信息
+		const userInfo = await sql.users.getInfoById({id: userid, forupdate: true, conn});
+		// 验证今日提现次数是否已达上限(每日1次)
+		const timeOffset = 8 - timeZone, today = new Date();
+		// 北京时间
+		today.setHours(today.getHours() + timeOffset);
+		today.setHours(0);
+		today.setMinutes(0);
+		today.setSeconds(0);
+		today.setHours(today.getHours() - timeOffset);
+		if (userInfo.last_pickup_time >= today.getTime()) {
+			await Promise.reject({status: 3004});
+		}
+		// 2%手续费
+		const fees = Math.ceil(quota * 2 / 100);
+		const newBalance = userInfo.balance - quota - fees;
+		// 余额不足
+		if (newBalance < 0) {
+			await Promise.reject({status: 2003});
+		}
+		// 更新余额及提现时间
+		await sql.user.setBalance({id: userid, balance: newBalance, pickup: true, conn});
+		// 创建提现订单
+		await sql.pickup.insert({userid, alipay: userInfo.alipay, quota, fees, conn});
+		// 提交
+		await transs.commit(conn);
+		// 返回最新余额
+		return newBalance;
 	}
 	catch(e) {
 		_release(conn);
 		return Promise.reject(e);
 	}
-	trans(function(transerr, conn) {
-		if (transerr) {
-			callback({status: 1003, desc: transerr});
-			return;
-		}
-		conn.query('select balance,last_pickup_time from users where id=' + userid + ' for update', function(errA, resultA) {
-			if (errA) {
-				_release(conn);
-				callback({status: 1003, desc: errA});
-				return;
-			}
-			// 用户不存在
-			var userInfo = resultA[0];
-			if (!userInfo) {
-				_release(conn);
-				callback({status: 2002});
-				return;
-			}
-
-			// 验证今日提现次数是否已达上限(每日1次)
-			var lastPickupTime = userInfo.last_pickup_time;
-			var timeOffset = 8 - timeZone, today = new Date();
-			// 北京时间
-			today.setHours(today.getHours() + timeOffset);
-			// 今日0点
-			today.setHours(0);
-			today.setMinutes(0);
-			today.setSeconds(0);
-			today.setHours(today.getHours() - timeOffset);
-			// 如果上次提现时间比北京时间今日0点晚，则不允许提现
-			if (lastPickupTime >= today.getTime()) {
-				_release(conn);
-				callback({status: 3004});
-				return;
-			}
-
-			var balance = userInfo.balance;
-			// 手续费
-			var fees = Math.ceil(quota * 2 / 100);
-			var newBalance = balance - quota - fees;
-			// 余额不足
-			if (newBalance < 0) {
-				_release(conn);
-				callback({status: 2003});
-				return;
-			}
-			// 扣款
-			var newPickupTimeStr = _updatePickupTime(lastPickupStr);
-			conn.query('update users set balance=' + newBalance + ',last_pickup_time="' + newPickupTimeStr + '" where id=' + userid, function(errB, resultB) {
-				if (errB) {
-					_release(conn);
-					callback({status: 1003, desc: errB});
-					return;
-				}
-				// 创建提现订单
-				conn.query('insert into pickup(user,alipay,quota,fees,create_time) values(' + userid + ',"' + alipay + '",' + quota + ',' + fees + ',' + Date.now() + ')', function(errC, resultC) {
-					if (errC) {
-						_release(conn);
-						callback({status: 1003, desc: errC});
-						return;
-					}
-					conn.commit(function(comerr) {
-						if (comerr) {
-							_release(conn);
-							callback({status: 1003, desc: comerr});
-							return;
-						}
-						conn.release();
-						callback({status: 1000, newBalance: newBalance});
-						return;
-					});
-				});
-			});
-		});
-	});
 };
 
 // 获取提现记录
-var getPickupHistoryByUser = function(userid, callback) {
+const getPickupHistoryByUser = async userid => {
 
-	pool.query('select * from pickup where user=' + userid + ' order by create_time desc', function(err, result) {
-		if (err) {
-			callback({status: 1003, desc: err});
-			return;
-		}
-		callback({status: 1000, pickupList: result});
-	});
+	const pickupList = await sql.pickup.getListByUserid({userid});
+	return pickupList;
 };
 
 // 取消提现订单
-var cancelPickup = function(userid, pickupid, callback) {
+const cancelPickup = async (userid, pickupid) => {
 
-	trans(function(transerr, conn) {
-		if (transerr) {
-			callback({status: 1003, desc: transerr});
-			return;
+	const conn = await transs.getConnection();
+	try {
+		const pickupInfo = await sql.pickup.getInfo({id: pickupid, conn});
+		// 当前操作用户与订单用户不匹配
+		if (pickupInfo.user !== userid) {
+			await Promise.reject({status: 3002});
 		}
-		conn.query('select * from pickup where id=' + pickupid + ' for update', function(errA, resultA) {
-			if (errA) {
-				_release(conn);
-				callback({status: 1003, desc: errA});
-				return;
-			}
-			var pickupInfo = resultA[0];
-			// 订单不存在
-			if (!pickupInfo) {
-				_release(conn);
-				callback({status: 3001});
-				return;
-			}
-			// 当前操作用户与创建订单用户不匹配
-			if (pickupInfo.user !== userid) {
-				_release(conn);
-				callback({status: 3002});
-				return;
-			}
-			// 非等待处理状态
-			if (pickupInfo.status !== '0') {
-				_release(conn);
-				callback({status: 3003});
-				return;
-			}
-			// 删除订单
-			conn.query('update pickup set status="2" where id=' + pickupid, function(errB, resultB) {
-				if (errB) {
-					_release(conn);
-					callback({status: 1003, desc: errB});
-					return;
-				}
-				// 返还余额
-				var quota = pickupInfo.quota + pickupInfo.fees;
-				conn.query('select balance from users where id=' + userid + ' for update', function(errC, resultC) {
-					if (errC) {
-						_release(conn);
-						callback({status: 1003, desc: errC});
-						return;
-					}
-					var userInfo = resultC[0];
-					if (!userInfo) {
-						_release(conn);
-						callback({status: 2002});
-						return;
-					}
-					var balance = userInfo.balance;
-					conn.query('update users set balance=' + (balance + quota) + ' where id=' + userid, function(errD, resultD) {
-						if (errD) {
-							_release(conn);
-							callback({status: 1003, desc: errD});
-							return;
-						}
-						conn.commit(function(comerr) {
-							if (comerr) {
-								_release(conn);
-								callback({status: 1003, desc: comerr});
-								return;
-							}
-							conn.release();
-							callback({status: 1000});
-							return;
-						});
-					});
-				});
-			});
-		});
-	});
+		// 非等待处理状态
+		if (pickupInfo.status !== '0') {
+			await Promise.reject({status: 3003});
+		}
+		// 取消订单
+		await sql.pickup.cancel({id: pickupid, conn});
+		// 返还用户余额
+		const {balance} = await sql.users.getInfoById({id: userid, forupdate: true, conn});
+		const quota = pickupInfo.quota + pickupInfo.fees;
+		await sql.users.setBalance({id: userid, balance: balance + quota, conn});
+		// 提交
+		await transs.commit(conn);
+	}
+	catch(e) {
+		_release(conn);
+		return Promise.reject(e);
+	}
 };
 
 module.exports = {

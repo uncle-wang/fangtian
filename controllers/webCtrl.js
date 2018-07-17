@@ -376,8 +376,10 @@ module.exports = function(app) {
 				if (reg.test(quota)) {
 					quota = parseInt(quota);
 					if (quota >= 100) {
-						api.pickup(userId, quota, alipay, function(resultMap) {
-							res.send(resultMap);
+						api.pickup(userId, quota, alipay).then(newBalance => {
+							res.send({status: 1000, newBalance});
+						}).catch(err => {
+							res.send(err);
 						});
 						return;
 					}
@@ -395,8 +397,10 @@ module.exports = function(app) {
 
 		var userId = req.session.userid;
 		if (userId) {
-			api.getPickupHistoryByUser(userId, function(resultMap) {
-				res.send(resultMap);
+			api.getPickupHistoryByUser(userId).then(pickupList => {
+				res.send({status: 1000, pickupList});
+			}).catch(err => {
+				res.send(err);
 			});
 		}
 		else {
@@ -411,8 +415,10 @@ module.exports = function(app) {
 		var pickupId = req.query.id;
 		if (userId) {
 			if (pickupId) {
-				api.cancelPickup(userId, pickupId, function(resultMap) {
-					res.send(resultMap);
+				api.cancelPickup(userId, pickupId).then(() => {
+					res.send({status: 1000});
+				}).catch(err => {
+					res.send(err);
 				});
 			}
 			else {

@@ -42,10 +42,10 @@ const methods = {
 			return Promise.reject({status: 2002});
 		}
 	},
-	// 更新用户余额
-	async setBalance({id, balance, conn}) {
+	// 更新用户余额(如果是提现操作，则同时更新提现时间)
+	async setBalance({id, balance, pickup, conn}) {
 
-		const selector = 'update users set balance=' + balance + ' where id=' + id;
+		const selector = 'update users set balance=' + balance + (pickup ? ',last_pickup_time=' + Date.now() : '') +  ' where id=' + id;
 		return query(selector, conn);
 	},
 	// 添加新用户

@@ -11,7 +11,7 @@ const methods = {
 		return result.insertId;
 	},
 	// 获取指定用户的充值记录
-	async getHistoryByUserid({userid, conn}) {
+	async getListByUserid({userid, conn}) {
 
 		const selector = 'select * from recharge where user=' + userid + ' order by create_time desc';
 		return query(selector, conn);
