@@ -81,6 +81,13 @@ const methods = {
 		const selector = 'update users set alipay=? where id=?';
 		return query({selector, params, conn});
 	},
+	// 设置微信账号
+	async setWechat({id, wechat, conn}) {
+
+		const params = [wechat, id];
+		const selector = 'update users set wechat=? where id=?';
+		return query({selector, params, conn});
+	},
 };
 
 module.exports = methods;

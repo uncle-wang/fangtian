@@ -43,6 +43,13 @@ const methods = {
 		const regB = /^([a-zA-Z0-9_\.\-])+\@(([a-zA-Z0-9\-])+\.)+([a-zA-Z0-9]{2,4})+$/;
 		return _promise(regA.test(param) || regB.test(param), 1204);
 	},
+	// 微信
+	wechat: p => {
+
+		const regA = /^1\d{10}$/;
+		const regB = /^([a-zA-Z0-9_\.\-])+\@(([a-zA-Z0-9\-])+\.)+([a-zA-Z0-9]{2,4})+$/;
+		return _promise(regA.test(param) || regB.test(param), 1204);
+	},
 	// 充值金额
 	rechargequota: p => {
 

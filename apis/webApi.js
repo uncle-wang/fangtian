@@ -207,6 +207,41 @@ const methods = {
 		await sms.sendVerifyCode(tel, code, 2);
 	},
 
+	// 设置微信
+	async setWechat(userid, wechat, code) {
+
+		// 获取用户手机号
+		const {tel} = await sql.users.getInfoById({id: userid});
+		const conn = await transs.getConnection();
+		try {
+			// 获取验证码id
+			const codeId = await sql.code.getIdByValidCode({conn, tel, type: '3', code});
+			// 将验证码置为已使用状态
+			await sql.code.consumeCode({conn, id: codeId});
+			// 设置微信
+			await sql.users.setWechat({conn, id: userid, wechat});
+			// 提交
+			await transs.commit(conn);
+		}
+		catch(e) {
+			_release(conn);
+			return Promise.reject(e);
+		}
+	},
+
+	// 创建并发送绑定微信所需的验证码
+	async sendWechatCode(userid) {
+
+		const code = _createRandomCode();
+		const registered = await sql.users.telRegistered({tel});
+		if (!registered) {
+			await Promise.reject({status: 2002});
+		}
+		await sql.code.checkCanGet({tel, type: 3});
+		await sql.code.insert({tel, type: 3, code});
+		await sms.sendVerifyCode(tel, code, 3);
+	},
+
 	// 创建充值订单
 	async createRecharge(userid, quota) {
 

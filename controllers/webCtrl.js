@@ -160,6 +160,33 @@ app.get('/sendAlipayCode', (req, res) => {
 	});
 });
 
+// 绑定微信
+app.get('/setWechat', (req, res) => {
+
+	const wechat = req.query.wechat;
+	const code = req.query.code;
+	Promise.all([
+		validator.wechat(wechat),
+		validator.smscode(code)
+	]).then(() => {
+		return api.setWechat(userId, wechat, code);
+	}).then(() => {
+		res.send({status: 1000});
+	}).catch(err => {
+		res.send(err);
+	});
+});
+
+// 创建并发送绑定微信验证码
+app.get('/sendWechatCode', (req, res) => {
+
+	api.getSessionUser(req.session).then(api.sendWechatCode).then(() => {
+		res.send({status: 1000});
+	}).catch(err => {
+		res.send(err);
+	});
+});
+
 // 创建充值订单并计算支付签名
 app.get('/createRecharge', (req, res) => {
 
