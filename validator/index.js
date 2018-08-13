@@ -36,6 +36,12 @@ const methods = {
 
 		return _regTest(p, /^\d{6}$/, 1203);
 	},
+	// 支付方式
+	payment: p => {
+
+		const s = (p === '0' || p === '1');
+		return _promise(s, 3005);
+	},
 	// 支付宝
 	alipay: p => {
 

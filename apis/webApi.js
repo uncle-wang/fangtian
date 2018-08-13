@@ -351,7 +351,7 @@ const methods = {
 	},
 
 	// 提现
-	async pickup(userid, quota) {
+	async pickup(userid, quota, type) {
 
 		const conn = await transs.getConnection();
 		try {
@@ -378,7 +378,7 @@ const methods = {
 			// 更新余额及提现时间
 			await sql.users.setBalance({id: userid, balance: newBalance, pickup: true, conn});
 			// 创建提现订单
-			await sql.pickup.insert({userid, alipay: userInfo.alipay, quota, fees, conn});
+			await sql.pickup.insert({userid, alipay: userInfo.alipay, quota, type, fees, conn});
 			// 提交
 			await transs.commit(conn);
 			// 返回最新余额

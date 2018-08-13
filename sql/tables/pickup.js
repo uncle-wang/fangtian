@@ -3,10 +3,10 @@ const query = require('./../query');
 const methods = {
 
 	// 创建提现订单
-	async insert({conn, userid, alipay, quota, fees}) {
+	async insert({conn, userid, alipay, quota, type, fees}) {
 
-		const params = [userid, alipay, quota, fees, Date.now()];
-		const selector = 'insert into pickup(user,alipay,quota,fees,create_time) values(?,?,?,?,?)';
+		const params = [userid, alipay, quota, type, fees, Date.now()];
+		const selector = 'insert into pickup(user,alipay,quota,type,fees,create_time) values(?,?,?,?,?,?)';
 		return query({selector, params, conn});
 	},
 	// 获取指定用户的提现记录

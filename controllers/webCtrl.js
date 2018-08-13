@@ -337,10 +337,14 @@ app.get('/createOrder', (req, res) => {
 app.get('/pickup', (req, res) => {
 
 	const quota = req.query.quota;
-	validator.pickupquota(quota).then(() => {
+	const type = req.query.type;
+	Promise.all([
+		validator.pickupquota(quota),
+		validator.payment(type),
+	]).then(() => {
 		return api.getSessionUser(req.session);
 	}).then(userId => {
-		return api.pickup(userId, quota);
+		return api.pickup(userId, quota, type);
 	}).then(newBalance => {
 		res.send({status: 1000, newBalance});
 	}).catch(err => {
