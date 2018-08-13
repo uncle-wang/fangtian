@@ -12,13 +12,13 @@ const app = require('./../app');
 // 登陆
 app.post('/sign', (req, res) => {
 
-	const username = req.body.username;
+	const tel = req.body.tel;
 	const password = req.body.password;
 	Promise.all([
-		validator.phonenumber(username),
+		validator.phonenumber(tel),
 		validator.password(password)
 	]).then(() => {
-		return api.login(username, password, req.session);
+		return api.login(tel, password, req.session);
 	}).then(() => {
 		res.send({status: 1000});
 	}).catch(err => {
