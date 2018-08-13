@@ -10,10 +10,10 @@ const validator = require('./../validator');
 const app = require('./../app');
 
 // 登陆
-app.get('/sign', (req, res) => {
+app.post('/sign', (req, res) => {
 
-	const username = req.query.username;
-	const password = req.query.password;
+	const username = req.body.username;
+	const password = req.body.password;
 	Promise.all([
 		validator.phonenumber(username),
 		validator.password(password)
@@ -27,7 +27,7 @@ app.get('/sign', (req, res) => {
 });
 
 // 注销登录
-app.get('/logout', (req, res) => {
+app.post('/logout', (req, res) => {
 
 	api.getSessionUser(req.session).then(() => {
 		return api.logout(req.session);
@@ -39,7 +39,7 @@ app.get('/logout', (req, res) => {
 });
 
 // 获取用户信息
-app.get('/getUserInfo', (req, res) => {
+app.post('/getUserInfo', (req, res) => {
 
 	api.getSessionUser(req.session).then(api.getUserInfo).then(userInfo => {
 		res.send({status: 1000, userInfo});
@@ -49,11 +49,11 @@ app.get('/getUserInfo', (req, res) => {
 });
 
 // 注册
-app.get('/register', (req, res) => {
+app.post('/register', (req, res) => {
 
-	const tel = req.query.tel;
-	const code = req.query.code;
-	const password = req.query.password;
+	const tel = req.body.tel;
+	const code = req.body.code;
+	const password = req.body.password;
 	Promise.all([
 		validator.phonenumber(tel),
 		validator.smscode(code),
@@ -68,9 +68,9 @@ app.get('/register', (req, res) => {
 });
 
 // 创建并发送注册验证码
-app.get('/sendRegisterCode', (req, res) => {
+app.post('/sendRegisterCode', (req, res) => {
 
-	const tel = req.query.tel;
+	const tel = req.body.tel;
 	validator.phonenumber(tel).then(() => {
 		return api.sendRegisterCode(tel);
 	}).then(() => {
@@ -81,10 +81,10 @@ app.get('/sendRegisterCode', (req, res) => {
 });
 
 // 修改密码
-app.get('/updatePassword', (req, res) => {
+app.post('/updatePassword', (req, res) => {
 
-	const oldpassword = req.query.oldpassword;
-	const newpassword = req.query.newpassword;
+	const oldpassword = req.body.oldpassword;
+	const newpassword = req.body.newpassword;
 	Promise.all([
 		validator.password(oldpassword),
 		validator.password(newpassword)
@@ -102,11 +102,11 @@ app.get('/updatePassword', (req, res) => {
 });
 
 // 重置密码
-app.get('/resetPassword', (req, res) => {
+app.post('/resetPassword', (req, res) => {
 
-	const tel = req.query.tel;
-	const code = req.query.code;
-	const password = req.query.password;
+	const tel = req.body.tel;
+	const code = req.body.code;
+	const password = req.body.password;
 	Promise.all([
 		validator.phonenumber(tel),
 		validator.smscode(code),
@@ -121,9 +121,9 @@ app.get('/resetPassword', (req, res) => {
 });
 
 // 创建并发送重置密码验证码
-app.get('/sendResetCode', (req, res) => {
+app.post('/sendResetCode', (req, res) => {
 
-	const tel = req.query.tel;
+	const tel = req.body.tel;
 	validator.phonenumber(tel).then(() => {
 		return api.sendResetCode(tel);
 	}).then(() => {
@@ -134,10 +134,10 @@ app.get('/sendResetCode', (req, res) => {
 });
 
 // 绑定支付宝
-app.get('/setAlipay', (req, res) => {
+app.post('/setAlipay', (req, res) => {
 
-	const alipay = req.query.alipay;
-	const code = req.query.code;
+	const alipay = req.body.alipay;
+	const code = req.body.code;
 	Promise.all([
 		validator.alipay(alipay),
 		validator.smscode(code)
@@ -151,7 +151,7 @@ app.get('/setAlipay', (req, res) => {
 });
 
 // 创建并发送绑定支付宝验证码
-app.get('/sendAlipayCode', (req, res) => {
+app.post('/sendAlipayCode', (req, res) => {
 
 	api.getSessionUser(req.session).then(api.sendAlipayCode).then(() => {
 		res.send({status: 1000});
@@ -161,10 +161,10 @@ app.get('/sendAlipayCode', (req, res) => {
 });
 
 // 绑定微信
-app.get('/setWechat', (req, res) => {
+app.post('/setWechat', (req, res) => {
 
-	const wechat = req.query.wechat;
-	const code = req.query.code;
+	const wechat = req.body.wechat;
+	const code = req.body.code;
 	Promise.all([
 		validator.wechat(wechat),
 		validator.smscode(code)
@@ -178,7 +178,7 @@ app.get('/setWechat', (req, res) => {
 });
 
 // 创建并发送绑定微信验证码
-app.get('/sendWechatCode', (req, res) => {
+app.post('/sendWechatCode', (req, res) => {
 
 	api.getSessionUser(req.session).then(api.sendWechatCode).then(() => {
 		res.send({status: 1000});
@@ -188,10 +188,10 @@ app.get('/sendWechatCode', (req, res) => {
 });
 
 // 创建充值订单并计算支付签名
-app.get('/createRecharge', (req, res) => {
+app.post('/createRecharge', (req, res) => {
 
-	const quota = req.query.quota;
-	const redirect = req.query.redirect;
+	const quota = req.body.quota;
+	const redirect = req.body.redirect;
 	Promise.all([
 		validator.rechargequota(quota),
 		validator.redirect(redirect)
@@ -218,7 +218,7 @@ app.get('/createRecharge', (req, res) => {
 });
 
 // 获取充值历史记录
-app.get('/getRechargeHistory', (req, res) => {
+app.post('/getRechargeHistory', (req, res) => {
 
 	api.getSessionUser(req.session).then(api.getRechargeHistoryByUser).then(rechargeList => {
 		res.send({status: 1000, rechargeList});
@@ -228,10 +228,10 @@ app.get('/getRechargeHistory', (req, res) => {
 });
 
 // 对已创建充值订单计算支付签名(支付已创建订单)
-app.get('/payRecharge', (req, res) => {
+app.post('/payRecharge', (req, res) => {
 
-	const rechargeId = req.query.rechargeId;
-	const redirect = req.query.redirect;
+	const rechargeId = req.body.rechargeId;
+	const redirect = req.body.redirect;
 	Promise.all([
 		validator.rechargeid(rechargeId),
 		validator.redirect(redirect)
@@ -284,7 +284,7 @@ app.post('/payCallback', (req, res) => {
 });
 
 // 查询最近一期confessed游戏
-app.get('/getLatestConfessedGame', (req, res) => {
+app.post('/getLatestConfessedGame', (req, res) => {
 
 	api.getLatestConfessedGame().then(gameInfo => {
 		res.send({status: 1000, gameInfo});
@@ -294,7 +294,7 @@ app.get('/getLatestConfessedGame', (req, res) => {
 });
 
 // 查询往期confessed游戏
-app.get('/getConfessedHistory', (req, res) => {
+app.post('/getConfessedHistory', (req, res) => {
 
 	api.getConfessedGameHistory().then(gameList => {
 		res.send({status: 1000, gameList});
@@ -304,7 +304,7 @@ app.get('/getConfessedHistory', (req, res) => {
 });
 
 // 获取历史订单
-app.get('/getOrderHistory', (req, res) => {
+app.post('/getOrderHistory', (req, res) => {
 
 	api.getSessionUser(req.session).then(api.getOrderHistoryByUser).then(orderList => {
 		res.send({status: 1000, orderList});
@@ -314,10 +314,10 @@ app.get('/getOrderHistory', (req, res) => {
 });
 
 // confessed下单
-app.get('/createOrder', (req, res) => {
+app.post('/createOrder', (req, res) => {
 
 	var userId = req.session.userid;
-	const quota = req.query.quota, gameId = req.query.gameId, type = req.query.type;
+	const quota = req.body.quota, gameId = req.body.gameId, type = req.body.type;
 	Promise.all([
 		validator.orderquota(quota),
 		validator.gameid(gameId),
@@ -334,10 +334,10 @@ app.get('/createOrder', (req, res) => {
 });
 
 // 提现
-app.get('/pickup', (req, res) => {
+app.post('/pickup', (req, res) => {
 
-	const quota = req.query.quota;
-	const type = req.query.type;
+	const quota = req.body.quota;
+	const type = req.body.type;
 	Promise.all([
 		validator.pickupquota(quota),
 		validator.payment(type),
@@ -353,7 +353,7 @@ app.get('/pickup', (req, res) => {
 });
 
 // 获取提现历史记录
-app.get('/getPickupHistory', (req, res) => {
+app.post('/getPickupHistory', (req, res) => {
 
 	api.getSessionUser(req.session).then(api.getPickupHistoryByUser).then(pickupList => {
 		res.send({status: 1000, pickupList});
@@ -363,9 +363,9 @@ app.get('/getPickupHistory', (req, res) => {
 });
 
 // 取消提现订单
-app.get('/cancelPickup', (req, res) => {
+app.post('/cancelPickup', (req, res) => {
 
-	const pickupId = req.query.id;
+	const pickupId = req.body.id;
 	validator.pickupid(pickupId).then(() => {
 		return api.getSessionUser(req.session);
 	}).then(userId => {
