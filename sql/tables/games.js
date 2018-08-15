@@ -21,6 +21,31 @@ const methods = {
 			return Promise.reject({status: 4001});
 		}
 	},
+	// 创建
+	async insert({id, disabletime, closetime, conn}) {
+
+		const params = [id, Date.now(), disabletime, closetime];
+		const selector = 'insert into confessed_games(id,create_time,disable_time,close_time) values(?,?,?,?)';
+		return query({selector, params, conn});
+	},
+	// 删除
+	async remove({id, conn}) {
+
+		const selector = 'delete from confessed_games where id=?';
+		return query({selector, params: [id], conn});
+	},
+	// 结束游戏
+	async end({id, conn}) {
+
+		const selector = 'update confessed_games set status="1" where id=?';
+		return query({selector, params: [id], conn});
+	},
+	// 封盘
+	async disable({id, conn}) {
+
+		const selector = 'update confessed_games set status="2" where id=?';
+		return query({selector, params: [id], conn});
+	},
 	// 更新投注金额
 	async updateAmount({typename, amount, id, conn}) {
 
@@ -44,7 +69,7 @@ const methods = {
 	// 获取往期游戏记录
 	async getHistory(conn) {
 
-		const selector = 'select * from confessed_games where status="1" order by create_time desc';
+		const selector = 'select * from confessed_games order by create_time desc';
 		return query({selector, params, conn});
 	},
 };

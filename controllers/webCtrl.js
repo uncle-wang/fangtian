@@ -71,9 +71,7 @@ app.post('/register', (req, res) => {
 app.post('/sendRegisterCode', (req, res) => {
 
 	const tel = req.body.tel;
-	validator.phonenumber(tel).then(() => {
-		return api.sendRegisterCode(tel);
-	}).then(() => {
+	validator.phonenumber(tel).then(api.sendRegisterCode).then(() => {
 		res.send({status: 1000});
 	}).catch(err => {
 		res.send(err);
@@ -124,9 +122,7 @@ app.post('/resetPassword', (req, res) => {
 app.post('/sendResetCode', (req, res) => {
 
 	const tel = req.body.tel;
-	validator.phonenumber(tel).then(() => {
-		return api.sendResetCode(tel);
-	}).then(() => {
+	validator.phonenumber(tel).then(api.sendResetCode).then(() => {
 		res.send({status: 1000});
 	}).catch(err => {
 		res.send(err);
@@ -155,7 +151,8 @@ app.post('/setAlipay', (req, res) => {
 // 创建并发送绑定支付宝验证码
 app.post('/sendAlipayCode', (req, res) => {
 
-	api.getSessionUser(req.session).then(api.sendAlipayCode).then(() => {
+	const tel = req.body.tel;
+	validator.phonenumber(tel).then(api.sendAlipayCode).then(() => {
 		res.send({status: 1000});
 	}).catch(err => {
 		res.send(err);
@@ -184,7 +181,8 @@ app.post('/setWechat', (req, res) => {
 // 创建并发送绑定微信验证码
 app.post('/sendWechatCode', (req, res) => {
 
-	api.getSessionUser(req.session).then(api.sendWechatCode).then(() => {
+	const tel = req.body.tel;
+	validator.phonenumber(tel).then(api.sendWechatCode).then(() => {
 		res.send({status: 1000});
 	}).catch(err => {
 		res.send(err);

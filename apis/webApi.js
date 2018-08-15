@@ -122,9 +122,9 @@ const methods = {
 		if (registered) {
 			return Promise.reject({status: 2001});
 		}
-		await sql.code.checkCanGet({tel, type: 0});
-		await sql.code.insert({tel, type: 0, code});
-		await sms.sendVerifyCode(tel, code, 0);
+		await sql.code.checkCanGet({tel, type: '0'});
+		await sql.code.insert({tel, type: '0', code});
+		await sms.sendVerifyCode(tel, code, '0');
 	},
 
 	// 修改密码
@@ -175,9 +175,9 @@ const methods = {
 		if (!registered) {
 			await Promise.reject({status: 2002});
 		}
-		await sql.code.checkCanGet({tel, type: 1});
-		await sql.code.insert({tel, type: 1, code});
-		await sms.sendVerifyCode(tel, code, 1);
+		await sql.code.checkCanGet({tel, type: '1'});
+		await sql.code.insert({tel, type: '1', code});
+		await sms.sendVerifyCode(tel, code, '1');
 	},
 
 	// 设置支付宝
@@ -203,16 +203,16 @@ const methods = {
 	},
 
 	// 创建并发送绑定支付宝所需的验证码
-	async sendAlipayCode(userid) {
+	async sendAlipayCode(tel) {
 
 		const code = _createRandomCode();
 		const registered = await sql.users.telRegistered({tel});
 		if (!registered) {
 			await Promise.reject({status: 2002});
 		}
-		await sql.code.checkCanGet({tel, type: 2});
-		await sql.code.insert({tel, type: 2, code});
-		await sms.sendVerifyCode(tel, code, 2);
+		await sql.code.checkCanGet({tel, type: '2'});
+		await sql.code.insert({tel, type: '2', code});
+		await sms.sendVerifyCode(tel, code, '2');
 	},
 
 	// 设置微信
@@ -238,16 +238,16 @@ const methods = {
 	},
 
 	// 创建并发送绑定微信所需的验证码
-	async sendWechatCode(userid) {
+	async sendWechatCode(tel) {
 
 		const code = _createRandomCode();
 		const registered = await sql.users.telRegistered({tel});
 		if (!registered) {
 			await Promise.reject({status: 2002});
 		}
-		await sql.code.checkCanGet({tel, type: 3});
-		await sql.code.insert({tel, type: 3, code});
-		await sms.sendVerifyCode(tel, code, 3);
+		await sql.code.checkCanGet({tel, type: '3'});
+		await sql.code.insert({tel, type: '3', code});
+		await sms.sendVerifyCode(tel, code, '3');
 	},
 
 	// 创建充值订单

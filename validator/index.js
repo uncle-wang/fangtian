@@ -1,17 +1,17 @@
 // promise封装
-const _promise = (bool, errorcode) => {
+const _promise = (bool, errorcode, resolveObj) => {
 
 	if (bool) {
-		return Promise.resolve();
+		return Promise.resolve(resolveObj);
 	}
 	else {
 		return Promise.reject({status: errorcode});
 	}
 };
 // 正则表达式
-const _regTest = (param, reg, errorcode) => {
+const _regTest = (param, reg, errorcode, resolveObj) => {
 
-	return _promise(reg.test(param), errorcode);
+	return _promise(reg.test(param), errorcode, resolveObj);
 };
 // 是否有值
 const _hasSet = (p, errorcode) => {
@@ -29,7 +29,7 @@ const methods = {
 	// 手机号
 	phonenumber: p => {
 
-		return _regTest(p, /^1\d{10}$/, 1202);
+		return _regTest(p, /^1\d{10}$/, 1202, p);
 	},
 	// 短信验证码
 	smscode: p => {
