@@ -25,6 +25,13 @@ const _createRandomCode = () => {
 	return s;
 };
 
+// 过滤userinfo
+const _filterUserInfo = userInfo => {
+
+	const {tel, balance, alipay, wechat} = userInfo;
+	return {tel, balance, alipay, wechat};
+};
+
 const methods = {
 
 	// 从session中获取userid
@@ -72,13 +79,14 @@ const methods = {
 			await sql.users.setTryTimes({id: userInfo.id, times: 0});
 		}
 		session.userid = userInfo.id;
-		session.tel = userInfo.tel;
+		return _filterUserInfo(userInfo);
 	},
 
 	// 获取用户信息
 	async getUserInfo(userId) {
 
-		return sql.users.getInfoById({id: userId});
+		const userInfo = await sql.users.getInfoById({id: userId});
+		return _filterUserInfo(userInfo);
 	},
 
 	// 注册
@@ -173,7 +181,7 @@ const methods = {
 	},
 
 	// 设置支付宝
-	async setAlipay(userid, alipay, code) {
+	async setAlipay(userid, alipay, realname, code) {
 
 		// 获取用户手机号
 		const {tel} = await sql.users.getInfoById({id: userid});
@@ -184,7 +192,7 @@ const methods = {
 			// 将验证码置为已使用状态
 			await sql.code.consumeCode({conn, id: codeId});
 			// 设置支付宝
-			await sql.users.setAlipay({conn, id: userid, alipay});
+			await sql.users.setAlipay({conn, id: userid, alipay, realname});
 			// 提交
 			await transs.commit(conn);
 		}
@@ -208,7 +216,7 @@ const methods = {
 	},
 
 	// 设置微信
-	async setWechat(userid, wechat, code) {
+	async setWechat(userid, wechat, realname, code) {
 
 		// 获取用户手机号
 		const {tel} = await sql.users.getInfoById({id: userid});
@@ -219,7 +227,7 @@ const methods = {
 			// 将验证码置为已使用状态
 			await sql.code.consumeCode({conn, id: codeId});
 			// 设置微信
-			await sql.users.setWechat({conn, id: userid, wechat});
+			await sql.users.setWechat({conn, id: userid, wechat, realname});
 			// 提交
 			await transs.commit(conn);
 		}
@@ -375,10 +383,106 @@ const methods = {
 			if (newBalance < 0) {
 				await Promise.reject({status: 2003});
 			}
+			// 收款账号
+			let pickupParams = {userid, quota, fees, conn};
+			// 支付宝
+			if (type === '0') {
+				if (userInfo.alipay) {
+					pickupParams.alipay = userInfo.alipay;
+				}
+				// 未绑定支付宝
+				else {
+					await Promise.reject({status: 6001});
+				}
+			}
+			// 微信
+			else {
+				if (userInfo.wechat) {
+					pickupParams.wechat = userInfo.wechat;
+				}
+				// 未绑定微信
+				else {
+					await Promise.reject({status: 6002});
+				}
+			}
 			// 更新余额及提现时间
 			await sql.users.setBalance({id: userid, balance: newBalance, pickup: true, conn});
 			// 创建提现订单
-			await sql.pickup.insert({userid, alipay: userInfo.alipay, quota, type, fees, conn});
+			await sql.pickup.insert(pickupParams);
+			// 提交
+			await transs.commit(conn);
+			// 返回最新余额
+			return newBalance;
+		}
+		catch(e) {
+			_release(conn);
+			return Promise.reject(e);
+		}
+	},
+
+	// 全部提现
+	async pickupall(userid, type) {
+
+		// 计算最大可提现数额
+		const getMaxPickupValue = function(balance) {
+			let max = Math.floor(balance * 98 / 100);
+			while (max + Math.ceil(max * 2 / 100) <= balance) {
+				max ++;
+			}
+			return -- max;
+		};
+
+		const conn = await transs.getConnection();
+		try {
+			// 获取用户信息
+			const userInfo = await sql.users.getInfoById({id: userid, forupdate: true, conn});
+			// 验证今日提现次数是否已达上限(每日1次)
+			const timeOffset = 8 - timeZone, today = new Date();
+			// 北京时间
+			today.setHours(today.getHours() + timeOffset);
+			today.setHours(0);
+			today.setMinutes(0);
+			today.setSeconds(0);
+			today.setHours(today.getHours() - timeOffset);
+			if (userInfo.last_pickup_time >= today.getTime()) {
+				await Promise.reject({status: 3004});
+			}
+			// 余额不足
+			const {balance} = userInfo;
+			if (balance < 2) {
+				await Promise.reject({status: 2003});
+			}
+			// 最大可提现金额
+			const quota = getMaxPickupValue(balance);
+			// 2%手续费
+			const fees = Math.ceil(quota * 2 / 100);
+			const newBalance = balance - quota - fees;
+			// 收款账号
+			let pickupParams = {userid, quota, fees, conn};
+			// 支付宝
+			if (type === '0') {
+				if (userInfo.alipay) {
+					pickupParams.alipay = userInfo.alipay;
+				}
+				// 未绑定支付宝
+				else {
+					await Promise.reject({status: 6001});
+				}
+			}
+			// 微信
+			else {
+				if (userInfo.wechat) {
+					pickupParams.wechat = userInfo.wechat;
+				}
+				// 未绑定微信
+				else {
+					await Promise.reject({status: 6002});
+				}
+			}
+			// 更新余额及提现时间
+			await sql.users.setBalance({id: userid, balance: newBalance, pickup: true, conn});
+			// 创建提现订单
+			await sql.pickup.insert(pickupParams);
 			// 提交
 			await transs.commit(conn);
 			// 返回最新余额

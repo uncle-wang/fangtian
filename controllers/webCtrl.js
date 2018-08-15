@@ -19,8 +19,8 @@ app.post('/sign', (req, res) => {
 		validator.password(password)
 	]).then(() => {
 		return api.login(tel, password, req.session);
-	}).then(() => {
-		res.send({status: 1000});
+	}).then((userInfo) => {
+		res.send({status: 1000, userInfo});
 	}).catch(err => {
 		res.send(err);
 	});
@@ -136,13 +136,15 @@ app.post('/sendResetCode', (req, res) => {
 // 绑定支付宝
 app.post('/setAlipay', (req, res) => {
 
-	const alipay = req.body.alipay;
-	const code = req.body.code;
+	const {alipay, code, realname} = req.body;
 	Promise.all([
 		validator.alipay(alipay),
-		validator.smscode(code)
+		validator.smscode(code),
+		validator.realname(realname)
 	]).then(() => {
-		return api.setAlipay(userId, alipay, code);
+		return api.getSessionUser(req.session);
+	}).then(userId => {
+		return api.setAlipay(userId, alipay, realname, code);
 	}).then(() => {
 		res.send({status: 1000});
 	}).catch(err => {
@@ -163,13 +165,15 @@ app.post('/sendAlipayCode', (req, res) => {
 // 绑定微信
 app.post('/setWechat', (req, res) => {
 
-	const wechat = req.body.wechat;
-	const code = req.body.code;
+	const {wechat, code, realname} = req.body;
 	Promise.all([
 		validator.wechat(wechat),
-		validator.smscode(code)
+		validator.smscode(code),
+		validator.realname(realname)
 	]).then(() => {
-		return api.setWechat(userId, wechat, code);
+		return api.getSessionUser(req.session);
+	}).then(userId => {
+		return api.setWechat(userId, wechat, realname, code);
 	}).then(() => {
 		res.send({status: 1000});
 	}).catch(err => {
@@ -345,8 +349,23 @@ app.post('/pickup', (req, res) => {
 		return api.getSessionUser(req.session);
 	}).then(userId => {
 		return api.pickup(userId, quota, type);
-	}).then(newBalance => {
-		res.send({status: 1000, newBalance});
+	}).then(balance => {
+		res.send({status: 1000, balance});
+	}).catch(err => {
+		res.send(err);
+	});
+});
+
+// 全部提现
+app.post('/pickupall', (req, res) => {
+
+	const type = req.body.type;
+	validator.payment(type).then(() => {
+		return api.getSessionUser(req.session);
+	}).then(userId => {
+		return api.pickupall(userId, type);
+	}).then(balance => {
+		res.send({status: 1000, balance});
 	}).catch(err => {
 		res.send(err);
 	});

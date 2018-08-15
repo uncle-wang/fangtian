@@ -75,17 +75,17 @@ const methods = {
 		return query({selector, params, conn});
 	},
 	// 设置支付宝账号
-	async setAlipay({id, alipay, conn}) {
+	async setAlipay({id, alipay, realname, conn}) {
 
-		const params = [alipay, id];
-		const selector = 'update users set alipay=? where id=?';
+		const params = [alipay, realname, id];
+		const selector = 'update users set alipay=?,alipayname=? where id=?';
 		return query({selector, params, conn});
 	},
 	// 设置微信账号
-	async setWechat({id, wechat, conn}) {
+	async setWechat({id, wechat, realname, conn}) {
 
-		const params = [wechat, id];
-		const selector = 'update users set wechat=? where id=?';
+		const params = [wechat, realname, id];
+		const selector = 'update users set wechat=?,wechatname=? where id=?';
 		return query({selector, params, conn});
 	},
 };

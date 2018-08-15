@@ -47,19 +47,19 @@ const methods = {
 
 		const regA = /^1\d{10}$/;
 		const regB = /^([a-zA-Z0-9_\.\-])+\@(([a-zA-Z0-9\-])+\.)+([a-zA-Z0-9]{2,4})+$/;
-		return _promise(regA.test(param) || regB.test(param), 1204);
+		return _promise(regA.test(p) || regB.test(p), 1204);
 	},
 	// 微信
 	wechat: p => {
 
 		const regA = /^1\d{10}$/;
 		const regB = /^([a-zA-Z0-9_\.\-])+\@(([a-zA-Z0-9\-])+\.)+([a-zA-Z0-9]{2,4})+$/;
-		return _promise(regA.test(param) || regB.test(param), 1204);
+		return _promise(regA.test(p) || regB.test(p), 1204);
 	},
 	// 充值金额
 	rechargequota: p => {
 
-		const arr = ['10', '30', '100', '300', '1000', '2000', '5000', '10000'];
+		const arr = ['10', '20', '50', '100', '300', '1000', '2000', '5000', '10000'];
 		p = p.toString();
 		return _promise(arr.indexOf(p) > -1, 1205);
 	},
@@ -99,6 +99,11 @@ const methods = {
 	ordertype: p => {
 
 		return _promise((p === '0' || p === '1'), 1212);
+	},
+	// 真实姓名
+	realname: p => {
+
+		return _hasSet(p, )
 	},
 };
 
