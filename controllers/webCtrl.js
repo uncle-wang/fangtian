@@ -189,31 +189,43 @@ app.post('/sendWechatCode', (req, res) => {
 	});
 });
 
-// 创建充值订单并计算支付签名
+// 创建充值订单
 app.post('/createRecharge', (req, res) => {
 
-	const quota = req.body.quota;
-	const redirect = req.body.redirect;
+	const {quota, payment, account} = req.body;
 	Promise.all([
 		validator.rechargequota(quota),
-		validator.redirect(redirect)
+		validator.payment(payment)
 	]).then(() => {
+		let p;
+		if (payment === '0') {
+			p = validator.alipay(account);
+		}
+		else {
+			p = validator.wechat(account);
+		}
+		return p;
+	}).then(() => {
 		return api.getSessionUser(req.session);
-	}).then(userId => {
-		const apiKey = PAYCONFIG.APIKEY;
-		const apiUser = PAYCONFIG.APIUSER;
-		const type = PAYCONFIG.TYPE;
-		return api.createRecharge(userId, parseInt(quota));
+	}).then(userid => {
+		return api.createRecharge(userid, quota, payment, account);
 	}).then(rechargeId => {
-		const payenv = PAYCONFIG.ENVKEY;
-		const orderId = payenv + '_' + rechargeId;
-		const str = apiKey + apiUser + orderId + payenv + quota + redirect + type;
-		const signature = md5(str);
-		res.send({status: 1000, payInfo: {
-			order_id: orderId,
-			order_info: payenv,
-			signature
-		}});
+		res.send({status: 1000, rechargeId});
+	}).catch(err => {
+		res.send(err);
+	});
+});
+
+// 取消充值订单
+app.post('/cancelRecharge', (req, res) => {
+
+	const {id} = req.body;
+	validator.rechargeid(id).then(() => {
+		return api.getSessionUser(req.session);
+	}).then(userid => {
+		return api.cancelRecharge(id, userid);
+	}).then(() => {
+		res.send({status: 1000});
 	}).catch(err => {
 		res.send(err);
 	});

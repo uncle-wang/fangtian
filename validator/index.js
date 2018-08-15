@@ -59,8 +59,7 @@ const methods = {
 	// 充值金额
 	rechargequota: p => {
 
-		const arr = ['10', '20', '50', '100', '300', '1000', '2000', '5000', '10000'];
-		p = p.toString();
+		const arr = [10, 20, 50, 100, 300, 1000, 2000, 5000, 10000];
 		return _promise(arr.indexOf(p) > -1, 1205);
 	},
 	// 重定向url
@@ -76,8 +75,7 @@ const methods = {
 	// 下单金额
 	orderquota: p => {
 
-		const arr = ['10', '30', '100', '300', '1000', '2000', '5000', '10000'];
-		p = p.toString();
+		const arr = [10, 30, 100, 300, 1000, 2000, 5000, 10000];
 		return _promise(arr.indexOf(p) > -1, 1208);
 	},
 	// 提现金额

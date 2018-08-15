@@ -3,10 +3,10 @@ const query = require('./../query');
 const methods = {
 
 	// 创建充值订单
-	async insert({userid, quota, conn}) {
+	async insert({userid, quota, payment, account, conn}) {
 
-		const params = [userid, quota, Date.now()];
-		const selector = 'insert into recharge(user,quota,create_time) values(?,?,?)';
+		const params = [userid, quota, payment, account, Date.now()];
+		const selector = 'insert into recharge(user,quota,payment,account,create_time) values(?,?,?,?,?)';
 		const result = await query({selector, params, conn});
 		return result.insertId;
 	},
@@ -36,6 +36,13 @@ const methods = {
 
 		const params = [id];
 		const selector = 'update recharge set status="1" where id=?';
+		return query({selector, params, conn});
+	},
+	// 修改充值订单为取消状态
+	async cancel({id, conn}) {
+
+		const params = [id];
+		const selector = 'update recharge set status="2" where id=?';
 		return query({selector, params, conn});
 	},
 };

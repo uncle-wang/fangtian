@@ -251,9 +251,24 @@ const methods = {
 	},
 
 	// 创建充值订单
-	async createRecharge(userid, quota) {
+	async createRecharge(userid, quota, payment, account) {
 
-		return sql.recharge.insert({userid, quota});
+		return sql.recharge.insert({userid, quota, payment, account});
+	},
+
+	// 取消充值订单
+	async cancelRecharge(id, userid) {
+
+		const {user, status} = await sql.recharge.getInfo({id});
+		// 状态不可取消
+		if (status !== '0') {
+			return Promise.reject({status: 9004});
+		}
+		// 用户不匹配
+		if (user !== userid) {
+			return Promise.reject({status: 9002});
+		}
+		return sql.recharge.cancel({id});
 	},
 
 	// 获取充值记录
