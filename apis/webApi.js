@@ -286,7 +286,7 @@ const methods = {
 	// 支付充值订单
 	async payRecharge(rechargeId) {
 
-		const conn = transs.getConnection();
+		const conn = await transs.getConnection();
 		try {
 			// 获取充值订单信息
 			const rechargeInfo = await sql.recharge.getInfo({conn, id: rechargeId, forupdate: true});

@@ -32,7 +32,7 @@ const check = data => {
 	// 校验
 	if (signature === md5(apiKey + orderId + orderInfo + ppzOrderId + price + realPrice)) {
 		// 实际支付允许0.02元的误差
-		if (Number(price) - Number(realPrice) <= 0.02) {
+		if (Number(price) - Number(realPrice) <= 0.1) {
 			return true;
 		}
 	}

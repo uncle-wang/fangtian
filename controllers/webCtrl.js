@@ -1,11 +1,7 @@
-// md5
-var md5 = require('md5');
 // 加载api模块
 var api = require('./../apis/webApi');
-// 加载配置文件
-var PAYCONFIG = require('./../config').PAYMENT;
 // 参数校验模块
-const validator = require('./../validator');
+const validator = require('./../services/validator');
 // 支付
 const payment = require('./../services/payment');
 
