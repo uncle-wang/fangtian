@@ -535,9 +535,12 @@ const methods = {
 			// 返还用户余额
 			const {balance} = await sql.users.getInfoById({id: userid, forupdate: true, conn});
 			const quota = pickupInfo.quota + pickupInfo.fees;
-			await sql.users.setBalance({id: userid, balance: balance + quota, conn});
+			const newBalance = balance + quota;
+			await sql.users.setBalance({id: userid, balance: newBalance, conn});
 			// 提交
 			await transs.commit(conn);
+			// 返回最新余额
+			return newBalance;
 		}
 		catch(e) {
 			_release(conn);

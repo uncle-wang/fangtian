@@ -342,9 +342,9 @@ app.post('/cancelPickup', (req, res) => {
 	validator.pickupid(pickupId).then(() => {
 		return api.getSessionUser(req.session);
 	}).then(userId => {
-		api.cancelPickup(userId, pickupId);
-	}).then(() => {
-		res.send({status: 1000});
+		return api.cancelPickup(userId, pickupId);
+	}).then(balance => {
+		res.send({status: 1000, balance});
 	}).catch(err => {
 		res.send(err);
 	});
