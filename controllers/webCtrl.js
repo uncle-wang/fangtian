@@ -6,6 +6,8 @@ var api = require('./../apis/webApi');
 var PAYCONFIG = require('./../config').PAYMENT;
 // 参数校验模块
 const validator = require('./../validator');
+// 支付
+const payment = require('./../services/payment');
 
 const app = require('./../app');
 
@@ -192,25 +194,17 @@ app.post('/sendWechatCode', (req, res) => {
 // 创建充值订单
 app.post('/createRecharge', (req, res) => {
 
-	const {quota, payment, account} = req.body;
+	const {quota, redirect} = req.body;
 	Promise.all([
 		validator.rechargequota(quota),
-		validator.payment(payment)
+		validator.redirect(redirect),
 	]).then(() => {
-		let p;
-		if (payment === '0') {
-			p = validator.alipay(account);
-		}
-		else {
-			p = validator.wechat(account);
-		}
-		return p;
-	}).then(() => {
 		return api.getSessionUser(req.session);
 	}).then(userid => {
-		return api.createRecharge(userid, quota, payment, account);
+		return api.createRecharge(userid, quota);
 	}).then(rechargeId => {
-		res.send({status: 1000, rechargeId});
+		const {signature_alipay, signature_wechat, order_info} = payment.gen(rechargeId, quota, redirect);
+		res.send({status: 1000, orderInfo: {rechargeId, signature_alipay, signature_wechat, order_info}});
 	}).catch(err => {
 		res.send(err);
 	});
@@ -241,60 +235,14 @@ app.post('/getRechargeHistory', (req, res) => {
 	});
 });
 
-// 对已创建充值订单计算支付签名(支付已创建订单)
-app.post('/payRecharge', (req, res) => {
-
-	const rechargeId = req.body.rechargeId;
-	const redirect = req.body.redirect;
-	Promise.all([
-		validator.rechargeid(rechargeId),
-		validator.redirect(redirect)
-	]).then(() => {
-		return api.getSessionUser(req,session);
-	}).then(userId => {
-		return api.getRechargeInfo(rechargeId).then(rechargeInfo => {
-			if (rechargeInfo.user !== userId) {
-				return Promise.reject({status: 9002});
-			}
-			const payenv = PAYCONFIG.ENVKEY;
-			const apiKey = PAYCONFIG.APIKEY;
-			const apiUser = PAYCONFIG.APIUSER;
-			const orderId = payenv + '_' + rechargeId;
-			const price = rechargeInfo.quota.toFixed(2);
-			const type = PAYCONFIG.TYPE;
-			const str = apiKey + apiUser + orderId + payenv + price + redirect + type;
-			const signature = md5(str);
-			res.send({status: 1000, rechargeInfo: {
-				order_info: payenv,
-				signature
-			}});
-		}).catch(err => {
-			res.send(err);
-		});
-	});
-});
-
 // 支付回调
-app.post('/payCallback', (req, res) => {
+app.post('/pay_callback', (req, res) => {
 
-	const payenv = PAYCONFIG.ENVKEY;
-	const apiKey = PAYCONFIG.APIKEY;
-	const orderId = req.body.order_id;
-	const ppzOrderId = req.body.ppz_order_id;
-	const price = req.body.price;
-	const realPrice = req.body.real_price;
-	const signature = req.body.signature;
-	// 校验
-	if (signature === md5(apiKey + orderId + payenv + ppzOrderId + price + realPrice)) {
-		// 实际支付允许0.02元的误差
-		if (Number(price) - Number(realPrice) <= 0.02) {
-			if (orderId.indexOf(payenv + '_') === 0) {
-				const formatId = orderId.substr(payenv.length + 1);
-				api.payRecharge(formatId);
-			}
-		}
+	if (payment.check(req.body)) {
+		const rechargeId = req.body.order_id;
+		api.payRecharge(rechargeId).catch(() => {});
 	}
-	res.send({status: 1000});
+	res.send({code: 200});
 });
 
 // 查询最近一期confessed游戏

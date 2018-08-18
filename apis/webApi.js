@@ -251,9 +251,9 @@ const methods = {
 	},
 
 	// 创建充值订单
-	async createRecharge(userid, quota, payment, account) {
+	async createRecharge(userid, quota) {
 
-		return sql.recharge.insert({userid, quota, payment, account});
+		return sql.recharge.insert({userid, quota});
 	},
 
 	// 取消充值订单
