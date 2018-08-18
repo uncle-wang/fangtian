@@ -349,3 +349,18 @@ app.post('/cancelPickup', (req, res) => {
 		res.send(err);
 	});
 });
+
+// 删除提现订单
+app.post('/removePickup', (req, res) => {
+
+	const pickupId = req.body.id;
+	validator.pickupid(pickupId).then(() => {
+		return api.getSessionUser(req.session);
+	}).then(userId => {
+		return api.removePickup(userId, pickupId);
+	}).then(() => {
+		res.send({status: 1000});
+	}).catch(err => {
+		res.send(err);
+	});
+});

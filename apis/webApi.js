@@ -547,6 +547,22 @@ const methods = {
 			return Promise.reject(e);
 		}
 	},
+
+	// 删除提现订单
+	async removePickup(userid, pickupid) {
+
+		const pickupInfo = await sql.pickup.getInfo({id: pickupid});
+		// 当前操作用户与订单用户不匹配
+		if (pickupInfo.user !== userid) {
+			return Promise.reject({status: 3002});
+		}
+		// 非已取消状态
+		if (pickupInfo.status !== '2') {
+			return Promise.reject({status: 3006});
+		}
+		// 取消订单
+		return sql.pickup.remove({id: pickupid});
+	},
 };
 
 module.exports = methods;

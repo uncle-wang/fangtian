@@ -46,6 +46,12 @@ const methods = {
 		const selector = 'update pickup set status="2" where id=?';
 		return query({selector, params, conn});
 	},
+	// 删除
+	async remove({conn, id}) {
+
+		const selector = 'delete from pickup where id=?';
+		return query({selector, params: [id], conn});
+	},
 };
 
 module.exports = methods;
