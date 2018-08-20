@@ -31,9 +31,12 @@ const check = data => {
 	const signature = data.signature;
 	// 校验
 	if (signature === md5(apiKey + orderId + orderInfo + ppzOrderId + price + realPrice)) {
-		// 实际支付允许0.02元的误差
+		// 实际支付允许0.1元的误差
 		if (Number(price) - Number(realPrice) <= 0.1) {
-			return true;
+			// 环境校验
+			if (orderInfo === CONFIG.CALLBACKKEY) {
+				return true;
+			}
 		}
 	}
 	return false;
