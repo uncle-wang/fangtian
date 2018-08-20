@@ -278,9 +278,13 @@ const methods = {
 	},
 
 	// 查询充值订单信息
-	async getRechargeInfo(rechargeid) {
+	async getRechargeInfo(rechargeid, userid) {
 
-		return sql.recharge.getInfo({id: rechargeid});
+		const rechargeInfo = await sql.recharge.getInfo({id: rechargeid});
+		if (rechargeInfo.user !== userid) {
+			return Promise.reject({status: 9002});
+		}
+		return rechargeInfo;
 	},
 
 	// 支付充值订单

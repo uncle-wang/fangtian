@@ -206,6 +206,22 @@ app.post('/createRecharge', (req, res) => {
 	});
 });
 
+// 已创建充值订单获取支付签名信息
+app.post('/getSignature', (req, res) => {
+
+	const {id, redirect} = req.body;
+	validator.rechargeid(id).then(() => {
+		return api.getSessionUser(req.session);
+	}).then(userid => {
+		return api.getRechargeInfo(id, userid);
+	}).then(rechargeInfo => {
+		const {signature_alipay, signature_wechat, order_info} = payment.gen(rechargeInfo.id, rechargeInfo.quota, redirect);
+		res.send({status: 1000, orderInfo: {signature_alipay, signature_wechat, order_info}});
+	}).catch(err => {
+		res.send(err);
+	});
+});
+
 // 取消充值订单
 app.post('/cancelRecharge', (req, res) => {
 

@@ -38,11 +38,11 @@ const methods = {
 		const selector = 'update recharge set status="1" where id=?';
 		return query({selector, params, conn});
 	},
-	// 修改充值订单为取消状态
+	// 删除订单
 	async cancel({id, conn}) {
 
 		const params = [id];
-		const selector = 'update recharge set status="2" where id=?';
+		const selector = 'delete from recharge where id=?';
 		return query({selector, params, conn});
 	},
 };
